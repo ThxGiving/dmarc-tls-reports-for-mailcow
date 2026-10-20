@@ -120,7 +120,7 @@
   "run_time": "Dnevni zagon ob",
   "save": "Shrani",
   "mailbox_help": "Poštni nabiralnik, ki prejema poročila DMARC in TLS. Obdelana poročila se iz njega izbrišejo – uporabite ločen nabiralnik.",
-  "alert_help": "Eden ali več poštnih nabiralnikov na tem strežniku (ločeni z vejico), ne nabiralnik za poročila. Pošlje se le ob težavi.",
+  "alert_help": "En ali več e-poštnih naslovov (ločenih z vejico): poštni predali, vzdevki ali zunanji naslovi, ne pa predal za poročila. Pošlje se samo ob težavi.",
   "ips_auto": "Samodejno (kot mailcow)",
   "ips_manual": "Ročno (en IP na vrstico)",
   "ips_not_detected": "trenutno ni mogoče zaznati",

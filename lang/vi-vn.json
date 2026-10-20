@@ -120,7 +120,7 @@
   "run_time": "Chạy hằng ngày lúc",
   "save": "Lưu",
   "mailbox_help": "Hộp thư nhận báo cáo DMARC và TLS. Báo cáo đã xử lý sẽ bị xóa khỏi đó – hãy dùng một hộp thư riêng.",
-  "alert_help": "Một hoặc nhiều hộp thư trên máy chủ này (phân cách bằng dấu phẩy), không phải hộp thư báo cáo. Chỉ gửi khi có sự cố.",
+  "alert_help": "Một hoặc nhiều địa chỉ email (phân cách bằng dấu phẩy): hộp thư, bí danh hoặc địa chỉ bên ngoài, nhưng không phải hộp thư báo cáo. Chỉ gửi khi có sự cố.",
   "ips_auto": "Tự động (như mailcow)",
   "ips_manual": "Thủ công (mỗi dòng một IP)",
   "ips_not_detected": "hiện không xác định được",

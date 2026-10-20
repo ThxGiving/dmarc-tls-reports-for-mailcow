@@ -94,6 +94,20 @@ sort($all_mailboxes);
 
 $flash = function ($type, $msg) { $_SESSION['return'][] = ['type' => $type, 'msg' => $msg]; };
 
+// alert recipients: any address (mailbox, alias or external - alerts go out over SMTP), at most 10,
+// never the report mailbox; same format the collector accepts
+$check_alert = function (array $alert, $mb) {
+  $errors = [];
+  if (!$alert) { return ['alert_to']; }
+  if (count($alert) > 10) { $errors[] = 'alert_to: max. 10'; }
+  foreach ($alert as $a) {
+    if (!preg_match('/^[a-z0-9._+-]{1,64}@[a-z0-9-]+(\.[a-z0-9-]+)+$/', $a) || !filter_var($a, FILTER_VALIDATE_EMAIL) || $a === $mb) {
+      $errors[] = 'alert_to: ' . htmlspecialchars($a);
+    }
+  }
+  return $errors;
+};
+
 // password that passes any mailcow password policy (upper/lower case, digit, special char)
 $strong_pw = function () { return bin2hex(random_bytes(16)) . 'Aa1-' . bin2hex(random_bytes(8)); };
 // app password for the report mailbox, IMAP + SMTP only; replaces the one this page created before
@@ -144,17 +158,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
   elseif ($action === 'save') {
     $go_tab = 'settings';
     $mb = strtolower(trim($_POST['mailbox'] ?? ''));
-    $alert = array_values(array_filter(array_map('trim', preg_split('/[\s,;]+/', $_POST['alert_to'] ?? ''))));
+    $alert = array_values(array_unique(array_filter(array_map('trim', preg_split('/[\s,;]+/', strtolower($_POST['alert_to'] ?? ''))))));
     $ips_mode = ($_POST['own_ips_mode'] ?? 'auto') === 'manual' ? 'manual' : 'auto';
     $ips = array_values(array_filter(array_map('trim', preg_split('/[\s,;]+/', $_POST['own_ips'] ?? ''))));
     $lang = isset($lang_files[$_POST['language'] ?? '']) ? $_POST['language'] : 'en-gb';
     $run_time = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $_POST['run_time'] ?? '') ? $_POST['run_time'] : '07:30';
     $errors = [];
     if (!in_array($mb, $all_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
-    foreach ($alert as $a) {
-      if (!in_array(strtolower($a), $all_mailboxes, true) || strtolower($a) === $mb) { $errors[] = 'alert_to: ' . htmlspecialchars($a); }
-    }
-    if (!$alert) { $errors[] = 'alert_to'; }
+    $errors = array_merge($errors, $check_alert($alert, $mb));
     foreach ($ips as $ip) { if (!filter_var($ip, FILTER_VALIDATE_IP)) { $errors[] = 'IP: ' . htmlspecialchars($ip); } }
     if ($ips_mode === 'manual' && !$ips) { $errors[] = 'IP'; }
     if (!$protected) { $errors[] = $L['not_protected_t'] ?? 'nginx'; }
@@ -185,9 +196,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
       $mb = strtolower(trim($_POST['mailbox'] ?? ''));
       if (!in_array($mb, $all_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
     }
-    $alert = array_values(array_filter(array_map('trim', preg_split('/[\s,;]+/', strtolower($_POST['alert_to'] ?? '')))));
-    foreach ($alert as $a) { if (!in_array($a, $all_mailboxes, true) || $a === $mb) { $errors[] = 'alert_to: ' . htmlspecialchars($a); } }
-    if (!$alert) { $errors[] = $L['alert_to']; }
+    $alert = array_values(array_unique(array_filter(array_map('trim', preg_split('/[\s,;]+/', strtolower($_POST['alert_to'] ?? ''))))));
+    $errors = array_merge($errors, $check_alert($alert, $mb));
     if (!$errors && ($_POST['mb_mode'] ?? '') === 'new') {
       $pw = $strong_pw();
       if (mailbox('add', 'mailbox', ['local_part' => $local, 'domain' => $dom, 'name' => 'DMARC/TLS reports',
@@ -455,7 +465,7 @@ $tpl = <<<'TWIG'
       <div class="ms-4"><select name="mailbox" class="form-control" style="max-width:33rem">{% for mb in mailboxes %}<option value="{{ mb }}">{{ mb }}</option>{% endfor %}</select></div>
       <small class="form-text d-block">{{ L.setup_mb_help }}</small></div></div>
     <div class="row mb-3"><label class="col-sm-3 col-form-label">{{ L.alert_to }}</label><div class="col-sm-9">
-      <input name="alert_to" class="form-control" style="max-width:33rem" required><small class="form-text d-block">{{ L.alert_help }}</small></div></div>
+      <input name="alert_to" class="form-control" style="max-width:33rem" required placeholder="admin@example.org, it@example.com"><small class="form-text d-block">{{ L.alert_help }}</small></div></div>
     <div class="row mb-3"><div class="col-sm-9 offset-sm-3"><div class="form-check">
       <input class="form-check-input" type="checkbox" name="app_link" value="1" id="applink" checked>
       <label class="form-check-label" for="applink">{{ L.setup_app_link|replace({'{name}': L.app_name}) }}</label></div></div></div>
@@ -663,7 +673,7 @@ $tpl = <<<'TWIG'
               {% for mb in mailboxes %}<option value="{{ mb }}" {{ mb == s.mailbox ? 'selected' }}>{{ mb }}</option>{% endfor %}</select>
             <small class="form-text d-block">{{ L.mailbox_help }}</small></div></div>
           <div class="row mb-3"><label class="col-sm-4 col-form-label">{{ L.alert_to }}</label><div class="col-sm-8">
-            <input name="alert_to" class="form-control" value="{{ s.alert_to }}"><small class="form-text d-block">{{ L.alert_help }}</small></div></div>
+            <input name="alert_to" class="form-control" value="{{ s.alert_to }}" placeholder="admin@example.org, it@example.com"><small class="form-text d-block">{{ L.alert_help }}</small></div></div>
           <div class="row mb-3"><label class="col-sm-4 col-form-label">{{ L.own_ips }}</label><div class="col-sm-8">
             {% set ips_mode = s.own_ips_mode|default('auto') %}
             <div class="form-check"><input class="form-check-input" type="radio" name="own_ips_mode" value="auto" id="ipauto" {{ ips_mode == 'auto' ? 'checked' }}>

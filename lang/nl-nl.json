@@ -120,7 +120,7 @@
   "run_time": "Dagelijkse run om",
   "save": "Opslaan",
   "mailbox_help": "Mailbox die de DMARC- en TLS-rapporten ontvangt. Verwerkte rapporten worden eruit verwijderd – gebruik een aparte mailbox.",
-  "alert_help": "Een of meer mailboxen op deze server (gescheiden door komma's), niet de rapportmailbox. Wordt alleen verstuurd als er een probleem is.",
+  "alert_help": "Een of meer e-mailadressen (kommagescheiden): mailboxen, aliassen of externe adressen, maar niet de rapportmailbox. Alleen verzonden bij een probleem.",
   "ips_auto": "Automatisch (zoals mailcow)",
   "ips_manual": "Handmatig (één IP per regel)",
   "ips_not_detected": "momenteel niet te bepalen",

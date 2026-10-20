@@ -120,7 +120,7 @@
   "run_time": "Päivittäinen ajo klo",
   "save": "Tallenna",
   "mailbox_help": "Postilaatikko, johon DMARC- ja TLS-raportit tulevat. Käsitellyt raportit poistetaan siitä – käytä erillistä postilaatikkoa.",
-  "alert_help": "Yksi tai useampi tämän palvelimen postilaatikko (pilkulla erotettuna), ei raporttipostilaatikko. Lähetetään vain, jos on ongelma.",
+  "alert_help": "Yksi tai useampi sähköpostiosoite (pilkuilla eroteltuina): postilaatikoita, aliaksia tai ulkoisia osoitteita, ei kuitenkaan raporttipostilaatikkoa. Lähetetään vain ongelmatilanteissa.",
   "ips_auto": "Automaattinen (kuten mailcow)",
   "ips_manual": "Manuaalinen (yksi IP per rivi)",
   "ips_not_detected": "ei tällä hetkellä tunnistettavissa",

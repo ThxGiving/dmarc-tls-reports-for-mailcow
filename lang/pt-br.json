@@ -120,7 +120,7 @@
   "run_time": "Análise diária às",
   "save": "Salvar",
   "mailbox_help": "Mailbox que recebe os relatórios DMARC e TLS. Relatórios processados são excluídos dela – use uma mailbox exclusiva.",
-  "alert_help": "Uma ou mais mailboxes deste servidor (separadas por vírgula), não a mailbox de relatórios. Só enviado quando há problema.",
+  "alert_help": "Um ou mais endereços de e-mail (separados por vírgula): caixas de correio, aliases ou endereços externos, exceto a caixa dos relatórios. Enviado apenas quando há um problema.",
   "ips_auto": "Automático (como o mailcow)",
   "ips_manual": "Manual (um IP por linha)",
   "ips_not_detected": "no momento não detectável",

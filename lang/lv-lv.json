@@ -120,7 +120,7 @@
   "run_time": "Ikdienas apstrāde plkst.",
   "save": "Saglabāt",
   "mailbox_help": "Pastkaste, kas saņem DMARC un TLS atskaites. Apstrādātās atskaites no tās tiek dzēstas – izmantojiet atsevišķu pastkasti.",
-  "alert_help": "Viena vai vairākas pastkastes šajā serverī (atdalītas ar komatu), ne atskaišu pastkaste. Tiek sūtīts tikai tad, ja ir problēma.",
+  "alert_help": "Viena vai vairākas e-pasta adreses (atdalītas ar komatu): pastkastes, aizstājvārdi vai ārējas adreses, bet ne atskaišu pastkaste. Tiek sūtīts tikai problēmu gadījumā.",
   "ips_auto": "Automātiski (kā mailcow)",
   "ips_manual": "Manuāli (viena IP katrā rindā)",
   "ips_not_detected": "pašlaik nav nosakāms",

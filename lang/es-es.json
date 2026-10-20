@@ -120,7 +120,7 @@
   "run_time": "Análisis diario a las",
   "save": "Guardar",
   "mailbox_help": "Buzón que recibe los informes DMARC y TLS. Los informes analizados se borran de él: use un buzón dedicado.",
-  "alert_help": "Uno o varios buzones de este servidor (separados por comas), no el buzón de informes. Solo se envía si hay un problema.",
+  "alert_help": "Una o varias direcciones de correo (separadas por comas): buzones, alias o direcciones externas, pero no el buzón de informes. Solo se envía si hay un problema.",
   "ips_auto": "Automático (como mailcow)",
   "ips_manual": "Manual (una IP por línea)",
   "ips_not_detected": "no detectable en este momento",

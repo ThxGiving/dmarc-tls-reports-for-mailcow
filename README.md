@@ -36,7 +36,8 @@ Features:
    docker compose up -d
    ```
 3. Open `https://<mailcow-host>/admin/dmarc/` as mailcow admin and complete the setup assistant: choose or
-   create the report mailbox, enter who gets alerts and whether the page should appear in the Apps menu.
+   create the report mailbox, enter who gets alerts (one or more addresses, comma separated; mailboxes, aliases
+   or external addresses) and whether the page should appear in the Apps menu.
    The page creates an app password for the report mailbox (IMAP and SMTP only), which the container uses.
 4. Add the DNS records the DNS assistant lists:
 

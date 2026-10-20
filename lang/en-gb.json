@@ -120,7 +120,7 @@
   "run_time": "Daily run at",
   "save": "Save",
   "mailbox_help": "Mailbox that receives the DMARC and TLS reports. Processed reports are deleted from it – use a dedicated mailbox.",
-  "alert_help": "One or more mailboxes on this server (comma separated), not the report mailbox. Only sent when there is a problem.",
+  "alert_help": "One or more email addresses (comma separated): mailboxes, aliases or external addresses, not the report mailbox. Only sent when there is a problem.",
   "ips_auto": "Automatic (like mailcow)",
   "ips_manual": "Manual (one IP per line)",
   "ips_not_detected": "currently not detectable",

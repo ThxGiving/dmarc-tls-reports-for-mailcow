@@ -120,7 +120,7 @@
   "run_time": "Har kuni ishga tushirish vaqti",
   "save": "Saqlash",
   "mailbox_help": "DMARC va TLS hisobotlarini qabul qiluvchi pochta qutisi. Qayta ishlangan hisobotlar undan oʻchiriladi – alohida pochta qutisidan foydalaning.",
-  "alert_help": "Shu serverdagi bir yoki bir nechta pochta qutisi (vergul bilan ajratilgan), hisobotlar pochta qutisi emas. Faqat muammo boʻlganda yuboriladi.",
+  "alert_help": "Bir yoki bir nechta elektron pochta manzili (vergul bilan ajratilgan): pochta qutilari, taxalluslar yoki tashqi manzillar, lekin hisobotlar qutisi emas. Faqat muammo bo‘lganda yuboriladi.",
   "ips_auto": "Avtomatik (mailcow kabi)",
   "ips_manual": "Qoʻlda (har qatorda bitta IP)",
   "ips_not_detected": "hozircha aniqlab boʻlmaydi",

@@ -120,7 +120,7 @@
   "run_time": "Analyse quotidienne à",
   "save": "Enregistrer",
   "mailbox_help": "Boîte de réception qui reçoit les rapports DMARC et TLS. Les rapports analysés y sont supprimés – utilisez une boîte dédiée.",
-  "alert_help": "Une ou plusieurs boîtes de réception de ce serveur (séparées par des virgules), pas celle des rapports. Envoi uniquement en cas de problème.",
+  "alert_help": "Une ou plusieurs adresses e-mail (séparées par des virgules) : boîtes aux lettres, alias ou adresses externes, mais pas la boîte des rapports. Envoi uniquement en cas de problème.",
   "ips_auto": "Automatique (comme mailcow)",
   "ips_manual": "Manuel (une IP par ligne)",
   "ips_not_detected": "actuellement impossible à déterminer",

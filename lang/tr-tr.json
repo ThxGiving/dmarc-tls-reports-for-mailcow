@@ -120,7 +120,7 @@
   "run_time": "Günlük çalışma saati",
   "save": "Kaydet",
   "mailbox_help": "DMARC ve TLS raporlarını alan posta kutusu. İşlenen raporlar buradan silinir – ayrı bir posta kutusu kullanın.",
-  "alert_help": "Bu sunucudaki bir veya daha fazla posta kutusu (virgülle ayrılmış), rapor posta kutusu değil. Yalnızca bir sorun olduğunda gönderilir.",
+  "alert_help": "Bir veya daha fazla e-posta adresi (virgülle ayrılmış): posta kutuları, takma adlar veya harici adresler; rapor posta kutusu hariç. Yalnızca bir sorun olduğunda gönderilir.",
   "ips_auto": "Otomatik (mailcow gibi)",
   "ips_manual": "Elle (her satıra bir IP)",
   "ips_not_detected": "şu anda tespit edilemiyor",

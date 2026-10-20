@@ -120,7 +120,7 @@
   "run_time": "Napi futás ideje",
   "save": "Mentés",
   "mailbox_help": "Postafiók, amely a DMARC- és TLS-jelentéseket fogadja. A feldolgozott jelentések törlődnek belőle – használjon külön postafiókot.",
-  "alert_help": "Egy vagy több postafiók ezen a szerveren (vesszővel elválasztva), nem a jelentés-postafiók. Csak probléma esetén küldünk.",
+  "alert_help": "Egy vagy több e-mail-cím (vesszővel elválasztva): postafiókok, aliasok vagy külső címek, de nem a jelentések postafiókja. Csak probléma esetén küldjük.",
   "ips_auto": "Automatikus (mint a mailcow)",
   "ips_manual": "Kézi (soronként egy IP)",
   "ips_not_detected": "jelenleg nem észlelhető",

@@ -120,7 +120,7 @@
   "run_time": "Rulare zilnică la",
   "save": "Salvează",
   "mailbox_help": "Cutia poștală care primește rapoartele DMARC și TLS. Rapoartele procesate sunt șterse din ea – folosiți o cutie poștală dedicată.",
-  "alert_help": "Una sau mai multe cutii poștale de pe acest server (separate prin virgulă), nu cutia pentru rapoarte. Se trimite doar când există o problemă.",
+  "alert_help": "Una sau mai multe adrese de e-mail (separate prin virgulă): căsuțe poștale, aliasuri sau adrese externe, dar nu căsuța rapoartelor. Se trimite doar când există o problemă.",
   "ips_auto": "Automat (ca mailcow)",
   "ips_manual": "Manual (un IP pe linie)",
   "ips_not_detected": "momentan nu poate fi detectat",

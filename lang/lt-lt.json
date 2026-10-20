@@ -120,7 +120,7 @@
   "run_time": "Kasdienis vykdymas",
   "save": "Išsaugoti",
   "mailbox_help": "Pašto dėžutė, gaunanti DMARC ir TLS ataskaitas. Apdorotos ataskaitos iš jos ištrinamos – naudokite atskirą pašto dėžutę.",
-  "alert_help": "Viena ar kelios šio serverio pašto dėžutės (atskirtos kableliais), ne ataskaitų pašto dėžutė. Siunčiama tik esant problemai.",
+  "alert_help": "Vienas ar keli el. pašto adresai (atskirti kableliais): pašto dėžutės, slapyvardžiai ar išoriniai adresai, bet ne ataskaitų dėžutė. Siunčiama tik kilus problemai.",
   "ips_auto": "Automatiškai (kaip mailcow)",
   "ips_manual": "Rankiniu būdu (vienas IP eilutėje)",
   "ips_not_detected": "šiuo metu nenustatoma",

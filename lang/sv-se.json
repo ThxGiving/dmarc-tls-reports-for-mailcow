@@ -120,7 +120,7 @@
   "run_time": "Daglig körning kl.",
   "save": "Spara",
   "mailbox_help": "Postlådan som tar emot DMARC- och TLS-rapporterna. Behandlade rapporter raderas från den – använd en separat postlåda.",
-  "alert_help": "En eller flera postlådor på den här servern (kommaseparerade), inte rapportpostlådan. Skickas bara när det finns ett problem.",
+  "alert_help": "En eller flera e-postadresser (kommaseparerade): brevlådor, alias eller externa adresser, men inte rapportbrevlådan. Skickas bara när det finns ett problem.",
   "ips_auto": "Automatiskt (som mailcow)",
   "ips_manual": "Manuellt (en IP per rad)",
   "ips_not_detected": "kan för närvarande inte identifieras",

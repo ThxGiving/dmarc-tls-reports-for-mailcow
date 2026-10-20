@@ -120,7 +120,7 @@
   "run_time": "Daglig kørsel kl.",
   "save": "Gem",
   "mailbox_help": "Postkassen, der modtager DMARC- og TLS-rapporterne. Behandlede rapporter slettes fra den – brug en separat postkasse.",
-  "alert_help": "En eller flere postkasser på denne server (kommasepareret), ikke rapportpostkassen. Sendes kun, når der er et problem.",
+  "alert_help": "En eller flere e-mailadresser (kommasepareret): postkasser, aliasser eller eksterne adresser, men ikke rapportpostkassen. Sendes kun, når der er et problem.",
   "ips_auto": "Automatisk (som mailcow)",
   "ips_manual": "Manuelt (én IP pr. linje)",
   "ips_not_detected": "kan i øjeblikket ikke registreres",

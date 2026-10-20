@@ -120,7 +120,7 @@
   "run_time": "Tägliche Auswertung um",
   "save": "Speichern",
   "mailbox_help": "Postfach, an das die DMARC- und TLS-Berichte gehen. Ausgewertete Berichte werden daraus gelöscht – ein eigenes Postfach verwenden.",
-  "alert_help": "Ein oder mehrere Postfächer dieses Servers (Komma-getrennt), nicht das Berichts-Postfach. Nachricht nur bei Problemen.",
+  "alert_help": "Eine oder mehrere E-Mail-Adressen (Komma-getrennt): Postfächer, Aliase oder externe Adressen, nicht das Berichts-Postfach. Nachricht nur bei Problemen.",
   "ips_auto": "Automatisch (wie mailcow)",
   "ips_manual": "Manuell (eine IP pro Zeile)",
   "ips_not_detected": "gerade nicht ermittelbar",

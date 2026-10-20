@@ -67,7 +67,7 @@ MAILBOX = str(CFG.get("mailbox", "")).strip().lower()
 if not ADDR_RE.match(MAILBOX):
     MAILBOX = ""
 ALERT_TO = [a.strip().lower() for a in str(CFG.get("alert_to", "")).split(",")
-            if ADDR_RE.match(a.strip().lower()) and a.strip().lower() != MAILBOX]   # never alert into the report box
+            if ADDR_RE.match(a.strip().lower()) and a.strip().lower() != MAILBOX][:10]   # never alert into the report box
 OWN_IPS_MODE = CFG.get("own_ips_mode", "auto")               # "auto" (like mailcow) or "manual"
 OWN_IPS = set()                                             # filled in main() via own_ips()
 DB_PATH = ENV.get("DB_PATH", "/data/reports.db")

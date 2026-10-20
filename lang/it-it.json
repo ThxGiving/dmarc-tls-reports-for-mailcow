@@ -120,7 +120,7 @@
   "run_time": "Analisi giornaliera alle",
   "save": "Salva",
   "mailbox_help": "Casella di posta che riceve i rapporti DMARC e TLS. I rapporti analizzati vengono cancellati – usa una casella dedicata.",
-  "alert_help": "Una o più caselle di posta di questo server (separate da virgola), non la casella dei rapporti. Inviato solo in caso di problemi.",
+  "alert_help": "Uno o più indirizzi email (separati da virgola): caselle, alias o indirizzi esterni, ma non la casella dei rapporti. Inviato solo in caso di problemi.",
   "ips_auto": "Automatico (come mailcow)",
   "ips_manual": "Manuale (un IP per riga)",
   "ips_not_detected": "al momento non rilevabile",

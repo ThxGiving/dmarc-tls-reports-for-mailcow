@@ -120,7 +120,7 @@
   "run_time": "Codzienne uruchomienie o",
   "save": "Zapisz",
   "mailbox_help": "Skrzynka, która odbiera raporty DMARC i TLS. Przetworzone raporty są z niej usuwane – użyj osobnej skrzynki.",
-  "alert_help": "Jedna lub więcej skrzynek na tym serwerze (oddzielone przecinkami), nie skrzynka na raporty. Wysyłane tylko w razie problemu.",
+  "alert_help": "Jeden lub więcej adresów e-mail (oddzielonych przecinkami): skrzynki, aliasy lub adresy zewnętrzne, ale nie skrzynka raportów. Wysyłane tylko w razie problemu.",
   "ips_auto": "Automatycznie (jak mailcow)",
   "ips_manual": "Ręcznie (jeden IP w wierszu)",
   "ips_not_detected": "obecnie nie do wykrycia",

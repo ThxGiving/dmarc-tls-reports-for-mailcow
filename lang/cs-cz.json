@@ -120,7 +120,7 @@
   "run_time": "Denní běh v",
   "save": "Uložit",
   "mailbox_help": "Schránka, do které chodí zprávy DMARC a TLS. Zpracované zprávy se z ní mažou – použijte samostatnou schránku.",
-  "alert_help": "Jedna nebo více schránek na tomto serveru (oddělené čárkou), ne schránka pro zprávy. Odesílá se jen při problému.",
+  "alert_help": "Jedna nebo více e-mailových adres (oddělených čárkou): schránky, aliasy i externí adresy, ne však schránka pro zprávy. Odesílá se jen při problému.",
   "ips_auto": "Automaticky (jako mailcow)",
   "ips_manual": "Ručně (jedna IP na řádek)",
   "ips_not_detected": "momentálně nelze zjistit",
