@@ -8,10 +8,13 @@
  * from _data/dashboard.json written by the collector; direct HTTP access to _data/
  * is denied by the nginx snippet site.mailcow-reports.custom.
  *
- * Files written here (www-data) and read by the collector (root):
- *   _data/settings.json  settings tab
- *   _data/ack.json       issues marked as done: {id: {ts, title}}
- *   _data/run-now        "Run now" / apply settings (picked up by mailcow-reports.path)
+ * Files written here (www-data) and read by the container:
+ *   _data/settings.json     settings tab
+ *   _data/credentials.json  app password (IMAP + SMTP only) of the report mailbox
+ *   _data/mailcow.json      domain list (the container has no database access)
+ *   _data/ack.json          issues marked as done: {id: {ts, title}}
+ *   _data/run-now           apply settings / recount after "done" right away
+ * Written by the container: _data/container.json (is _data/ blocked by nginx?), dashboard.json
  */
 require_once $_SERVER['DOCUMENT_ROOT'] . '/inc/prerequisites.inc.php';
 
@@ -24,6 +27,8 @@ $data_dir = __DIR__ . '/_data';
 $data_file = $data_dir . '/dashboard.json';
 $settings_file = $data_dir . '/settings.json';
 $ack_file = $data_dir . '/ack.json';
+$cred_file = $data_dir . '/credentials.json';
+$app_name = 'mailcow-report-dashboard';
 
 $read_json = function ($f) {
   $v = is_readable($f) ? json_decode((string) file_get_contents($f), true) : null;
@@ -44,6 +49,8 @@ $write_json = function ($file, $value) use ($data_dir) {
 $data = $read_json($data_file) ?: null;
 $settings = $read_json($settings_file);
 $acks = $read_json($ack_file);
+$container = $read_json($data_dir . '/container.json');
+$protected = !empty($container['protected']);   // nginx blocks _data/ (checked by the container)
 // texts: lang/<mailcow locale>.json on top of lang/en-gb.json. The page follows the language chosen in
 // mailcow (flag menu / browser); the "language" setting only applies to the alert mails.
 $lang_files = [];
@@ -87,6 +94,42 @@ sort($all_mailboxes);
 
 $flash = function ($type, $msg) { $_SESSION['return'][] = ['type' => $type, 'msg' => $msg]; };
 
+// password that passes any mailcow password policy (upper/lower case, digit, special char)
+$strong_pw = function () { return bin2hex(random_bytes(16)) . 'Aa1-' . bin2hex(random_bytes(8)); };
+// app password for the report mailbox, IMAP + SMTP only; replaces the one this page created before
+$setup_access = function ($mb) use (&$settings, $protected, $app_name, $strong_pw, $write_json, $cred_file) {
+  if (!$protected) { return false; }
+  foreach (array_unique(array_filter([$settings['mailbox'] ?? '', $mb])) as $box) {
+    foreach ((array) app_passwd('get', ['username' => $box]) as $ap) {
+      if (($ap['name'] ?? '') === $app_name) { app_passwd('delete', ['id' => [$ap['id']]]); }
+    }
+  }
+  $pw = $strong_pw();
+  $ok = app_passwd('add', ['username' => $mb, 'app_name' => $app_name, 'app_passwd' => $pw, 'app_passwd2' => $pw,
+                           'active' => '1', 'protocols' => ['imap_access', 'smtp_access']]);
+  return $ok !== false && $write_json($cred_file, ['user' => $mb, 'password' => $pw]);
+};
+// Apps menu entry via mailcow's own customize(); existing entries are kept
+$add_app_link = function () use (&$L) {
+  $link = '/' . trim((string) ($GLOBALS['container']['slug'] ?? basename(__DIR__)), '/') . '/';
+  $apps = $hrefs = $user_hrefs = $hide = [];
+  foreach ((array) customize('get', 'app_links') as $entry) {
+    foreach ((array) $entry as $name => $a) {
+      if (($a['link'] ?? '') === $link) { return true; }
+      $apps[] = $name; $hrefs[] = $a['link'] ?? ''; $user_hrefs[] = $a['user_link'] ?? ($a['link'] ?? '');
+      $hide[] = empty($a['hide']) ? '0' : '1';
+    }
+  }
+  $apps[] = $L['app_name']; $hrefs[] = $link; $user_hrefs[] = $link; $hide[] = '1';   // not on the login page; admin-only display via CSS (see run.py)
+  return customize('edit', 'app_links', ['app' => $apps, 'href' => $hrefs, 'user_href' => $user_hrefs, 'hide' => $hide]) !== false;
+};
+$configured = !empty($settings['mailbox']) && is_readable($cred_file);
+// the container has no database access: hand it the domain list
+if ($protected && ($read_json($data_dir . '/mailcow.json')['domains'] ?? null) !== $all_domains) {
+  $write_json($data_dir . '/mailcow.json', ['domains' => $all_domains]);
+  @touch($data_dir . '/run-now');               // recount with the new domain list
+}
+
 // ---------------------------------------------------------------- actions (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
   $action = $_POST['mr_action'];
@@ -114,6 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
     if (!$alert) { $errors[] = 'alert_to'; }
     foreach ($ips as $ip) { if (!filter_var($ip, FILTER_VALIDATE_IP)) { $errors[] = 'IP: ' . htmlspecialchars($ip); } }
     if ($ips_mode === 'manual' && !$ips) { $errors[] = 'IP'; }
+    if (!$protected) { $errors[] = $L['not_protected_t'] ?? 'nginx'; }
+    elseif (!$errors && ($mb !== ($settings['mailbox'] ?? '') || !is_readable($cred_file)) && !$setup_access($mb)) {
+      $errors[] = 'app password';
+    }
     if ($errors) {
       $flash('danger', $L['invalid'] . ': ' . implode(', ', $errors));
     } elseif ($write_json($settings_file, ['mailbox' => $mb, 'alert_to' => implode(',', $alert), 'own_ips' => $ips,
@@ -124,25 +171,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
       $flash('danger', 'Cannot write ' . basename($settings_file));
     }
   }
-  elseif ($action === 'run_now') {
-    @touch($data_dir . '/run-now')
-      ? $flash('success', $L['run_started'])
-      : $flash('danger', 'Cannot write ' . $data_dir . '/run-now');
+  elseif ($action === 'setup') {
+    $go_tab = 'settings';                         // DNS records are shown there
+    $errors = [];
+    if (!$protected) { $errors[] = $L['not_protected_t']; }
+    if (($_POST['mb_mode'] ?? '') === 'new') {
+      $local = strtolower(trim($_POST['local_part'] ?? ''));
+      $dom = strtolower(trim($_POST['domain'] ?? ''));
+      $mb = $local . '@' . $dom;
+      if (!preg_match('/^[a-z0-9._-]{1,64}$/', $local) || !in_array($dom, $main_domains, true)) { $errors[] = $L['invalid_address']; }
+      elseif (in_array($mb, $all_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
+    } else {
+      $mb = strtolower(trim($_POST['mailbox'] ?? ''));
+      if (!in_array($mb, $all_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
+    }
+    $alert = array_values(array_filter(array_map('trim', preg_split('/[\s,;]+/', strtolower($_POST['alert_to'] ?? '')))));
+    foreach ($alert as $a) { if (!in_array($a, $all_mailboxes, true) || $a === $mb) { $errors[] = 'alert_to: ' . htmlspecialchars($a); } }
+    if (!$alert) { $errors[] = $L['alert_to']; }
+    if (!$errors && ($_POST['mb_mode'] ?? '') === 'new') {
+      $pw = $strong_pw();
+      if (mailbox('add', 'mailbox', ['local_part' => $local, 'domain' => $dom, 'name' => 'DMARC/TLS reports',
+            'quota' => 200, 'password' => $pw, 'password2' => $pw, 'active' => '1', 'force_pw_update' => '0',
+            'tls_enforce_in' => '0', 'tls_enforce_out' => '0']) === false) { $errors[] = 'mailbox'; }
+    }
+    if (!$errors && !$setup_access($mb)) { $errors[] = 'app password'; }
+    if (!$errors && !$write_json($settings_file, ['mailbox' => $mb, 'alert_to' => implode(',', $alert), 'own_ips' => [],
+          'own_ips_mode' => 'auto', 'language' => $lang_code, 'run_time' => '07:30'])) { $errors[] = basename($settings_file); }
+    if ($errors) {
+      $flash('danger', $L['invalid'] . ': ' . implode(', ', $errors));
+      $go_tab = 'overview';
+    } else {
+      if (!empty($_POST['app_link']) && !$add_app_link()) { $flash('warning', 'Apps menu'); }
+      @touch($data_dir . '/run-now');
+      $flash('success', $L['setup_done']);
+    }
   }
   elseif ($action === 'create_mailbox') {
     $go_tab = 'settings';
     $local = strtolower(trim($_POST['local_part'] ?? ''));
     $dom = strtolower(trim($_POST['domain'] ?? ''));
-    if (!preg_match('/^[a-z0-9._-]{1,64}$/', $local) || !in_array($dom, $main_domains, true)) {
+    if (!$protected) {
+      $flash('danger', $L['not_protected_t'] ?? 'nginx');
+    } elseif (!preg_match('/^[a-z0-9._-]{1,64}$/', $local) || !in_array($dom, $main_domains, true)) {
       $flash('danger', $L['invalid_address']);
     } else {
-      $pw = bin2hex(random_bytes(24));   // nobody needs to log in; the collector uses doveadm
+      $pw = $strong_pw();   // nobody logs in with it; the container uses an app password
       $ok = mailbox('add', 'mailbox', [
         'local_part' => $local, 'domain' => $dom, 'name' => 'DMARC/TLS reports (mailcow-report-dashboard)',
         'quota' => 200, 'password' => $pw, 'password2' => $pw, 'active' => '1',
         'force_pw_update' => '0', 'tls_enforce_in' => '0', 'tls_enforce_out' => '0',
       ]);
-      if ($ok !== false) {
+      if ($ok !== false && $setup_access($local . '@' . $dom)) {
         $new = $settings; $new['mailbox'] = $local . '@' . $dom;
         $write_json($settings_file, array_intersect_key($new, array_flip(['mailbox', 'alert_to', 'own_ips', 'own_ips_mode', 'language', 'run_time'])));
         @touch($data_dir . '/run-now');
@@ -357,6 +436,34 @@ $tpl = <<<'TWIG'
   .mr-issue-what{font-size:.9em;opacity:.8}
 </style>
 
+{% if not protected %}
+<div class="alert alert-warning"><b>{{ L.not_protected_t }}</b><br>{{ L.not_protected_d }}<br><code>docker compose restart nginx-mailcow</code></div>
+{% endif %}
+{% if not configured %}
+<div class="card mb-4 border-primary"><div class="card-header fs-5"><i class="bi bi-magic me-2"></i>{{ L.setup_t }}</div><div class="card-body">
+  <p class="text-muted">{{ L.setup_intro }}</p>
+  <div class="alert alert-info py-2"><i class="bi bi-bookmark me-1"></i>{{ L.setup_bookmark }} <code class="user-select-all">https://{{ host }}{{ base_url }}</code></div>
+  {% if protected %}
+  <form method="post"><input type="hidden" name="mr_action" value="setup">
+    <div class="row mb-3"><label class="col-sm-3 col-form-label">{{ L.mailbox }}</label><div class="col-sm-9">
+      <div class="form-check"><input class="form-check-input" type="radio" name="mb_mode" value="new" id="mbnew" checked>
+        <label class="form-check-label" for="mbnew">{{ L.setup_new_mb }}</label></div>
+      <div class="d-flex align-items-center gap-2 ms-4 mb-2"><input name="local_part" class="form-control" style="max-width:12rem" value="reports" pattern="[a-z0-9._-]+">
+        <span>@</span><select name="domain" class="form-control" style="max-width:20rem">{% for dm in main_domains %}<option>{{ dm }}</option>{% endfor %}</select></div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="mb_mode" value="existing" id="mbold">
+        <label class="form-check-label" for="mbold">{{ L.setup_existing_mb }}</label></div>
+      <div class="ms-4"><select name="mailbox" class="form-control" style="max-width:33rem">{% for mb in mailboxes %}<option value="{{ mb }}">{{ mb }}</option>{% endfor %}</select></div>
+      <small class="form-text d-block">{{ L.setup_mb_help }}</small></div></div>
+    <div class="row mb-3"><label class="col-sm-3 col-form-label">{{ L.alert_to }}</label><div class="col-sm-9">
+      <input name="alert_to" class="form-control" style="max-width:33rem" required><small class="form-text d-block">{{ L.alert_help }}</small></div></div>
+    <div class="row mb-3"><div class="col-sm-9 offset-sm-3"><div class="form-check">
+      <input class="form-check-input" type="checkbox" name="app_link" value="1" id="applink" checked>
+      <label class="form-check-label" for="applink">{{ L.setup_app_link|replace({'{name}': L.app_name}) }}</label></div></div></div>
+    <div class="row"><div class="col-sm-9 offset-sm-3"><button class="btn btn-success"><i class="bi bi-check-lg me-1"></i>{{ L.setup_go }}</button></div></div>
+  </form>
+  {% endif %}
+</div></div>
+{% else %}
 <ul class="nav nav-tabs" role="tablist" id="mr-tabs">
   {% for id, label in {'overview': L.overview, 'history': L.history, 'errors': L.errors, 'senders': L.senders, 'reports': L.reports, 'settings': L.settings} %}
   <li class="nav-item" role="presentation"><button class="nav-link {{ loop.first ? 'active' }}" data-bs-toggle="tab" data-bs-target="#tab-{{ id }}" type="button" role="tab">
@@ -368,7 +475,6 @@ $tpl = <<<'TWIG'
 
 {# ================================================================ overview #}
 <div role="tabpanel" class="tab-pane active" id="tab-overview">
-
   <div class="card mb-4">
     <div class="card-header d-flex align-items-center fs-5"><span>{{ L.status }}</span>
       <span class="ms-auto mr-sm text-muted">{% if d %}{{ L.updated }} {{ d.generated|date('d.m.Y H:i') }}{% endif %}</span></div>
@@ -393,10 +499,7 @@ $tpl = <<<'TWIG'
             <tr><td>{{ L.next_run }}</td><td>{{ next_run|date('d.m.Y H:i') }}</td></tr>
             <tr><td>{{ L.dns_state }}</td><td>{% if dns|length %}<span class="badge {{ dns_bad ? 'bg-warning text-dark' : 'bg-success' }}">{{ L.dns_n_ok|replace({'{ok}': dns_ok_n, '{n}': dns|length}) }}</span>{% else %}–{% endif %}</td></tr>
           </tbody></table>
-          <form method="post" class="d-flex align-items-center gap-2"><input type="hidden" name="mr_action" value="run_now">
-            {% if run_pending %}<span class="text-muted mr-sm"><span class="spinner-border spinner-border-sm me-1"></span>{{ L.run_pending }}</span>{% else %}
-            <button class="btn btn-sm btn-secondary"><i class="bi bi-arrow-repeat me-1"></i>{{ L.run_now }}</button>{% endif %}
-            <span class="text-muted mr-sm">{{ L.live_hint }}</span></form>
+          <div class="text-muted mr-sm">{% if run_pending %}<span class="spinner-border spinner-border-sm me-1"></span>{{ L.run_pending }}{% else %}{{ L.live_hint }}{% endif %}</div>
         </div>
       </div>
       {% endif %}
@@ -616,6 +719,7 @@ $tpl = <<<'TWIG'
 </div>
 
 </div></div></div>
+{% endif %}
 
 <script>
   // open the tab named in the URL hash (#settings, #errors, ...) and keep links like "#settings" inside the page
@@ -648,7 +752,7 @@ $template_data = [
   'own_badge' => $pct_badge($kpi['own_pct'] ?? null, $has_open('own:')), 'tls_badge' => $pct_badge($kpi['tls_pct'] ?? null, $has_open('tls:')),
   'chart' => $chart, 'colors' => $series_keys,
   'mailboxes' => $all_mailboxes, 'main_domains' => $main_domains, 'detected_ips' => $detected_ips, 'run_time' => $run_time,
-  'next_run' => $next_run, 'run_pending' => $run_pending,
+  'next_run' => $next_run, 'run_pending' => $run_pending, 'protected' => $protected, 'configured' => $configured, 'host' => $_SERVER['HTTP_HOST'] ?? '', 'base_url' => $base_url,
   'dns' => $dns, 'dns_todo' => $dns_todo, 'dns_by_domain' => $dns_by_domain, 'dns_ok_n' => $dns_ok_n, 'dns_bad' => $dns_bad, 'fresh' => $fresh,
 ];
 

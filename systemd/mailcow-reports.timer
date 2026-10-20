@@ -1,9 +1,0 @@
-[Unit]
-Description=mailcow report dashboard – hourly check whether the daily safety-net run is due
-
-[Timer]
-OnCalendar=hourly
-Persistent=true
-
-[Install]
-WantedBy=timers.target

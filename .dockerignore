@@ -1,0 +1,5 @@
+.git
+**/__pycache__
+docker-compose.override.yml.example
+README.md
+.github

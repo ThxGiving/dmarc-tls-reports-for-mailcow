@@ -5,15 +5,15 @@ Reads DMARC aggregate (RUA) and SMTP TLS (TLS-RPT) reports from a dedicated
 mailcow mailbox, stores them in SQLite, alerts by mail only on real problems and
 exports a JSON snapshot that the admin-only web page renders.
 
-Runs daily via systemd (mailcow-reports.timer).
+Runs inside the container, started by run.py. Mailbox access is IMAP with an app password
+(IMAP + SMTP only) that the settings page creates for the report mailbox.
 Options: --scheduled     run only if due (daily time from the web UI) or if "run now" was requested
-         (without option: process now - used by mailcow-reports-mail.path, which fires as soon as
-          a new report is delivered to the mailbox)
+         (without option: process now - run.py calls it as soon as new mail is in the mailbox)
          --dry-run       parse only: no DB writes, no deletion, alert mail printed
          --export-only   rebuild the dashboard JSON from the database
-Config:  /opt/mailcow-reports/config.json (see config.example.json)
+Config:  environment variables, see docker-compose.override.yml.example
 """
-import email, email.policy, fcntl, gzip, io, ipaddress, json, os, re, socket, sqlite3, stat, subprocess, sys, tempfile, time, zipfile
+import email, email.policy, fcntl, gzip, imaplib, io, ipaddress, json, os, re, smtplib, socket, sqlite3, ssl, stat, sys, tempfile, time, zipfile
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from datetime import datetime
@@ -21,13 +21,20 @@ from email.message import EmailMessage
 from email.utils import formatdate, make_msgid, parsedate_to_datetime
 
 BASE = os.path.dirname(os.path.abspath(__file__))
-CONFIG_PATH = os.environ.get("MAILCOW_REPORTS_CONFIG", os.path.join(BASE, "config.json"))
-with open(CONFIG_PATH) as _f:
-    CFG = json.load(_f)
-
-COMPOSE_DIR = CFG.get("mailcow_dir", "/opt/mailcow-dockerized")
-WEB_SLUG = CFG.get("web_slug", "reports").strip("/")
-DATA_DIR = os.path.join(COMPOSE_DIR, "data/web", WEB_SLUG, "_data")
+ENV = os.environ
+CFG = {}
+PAGE_DIR = ENV.get("PAGE_DIR", "/page")                       # mailcow's data/web/<SLUG>, mounted into the container
+WEB_SLUG = ENV.get("SLUG", "reports").strip("/")
+DATA_DIR = os.path.join(PAGE_DIR, "_data")
+CRED_PATH = os.path.join(DATA_DIR, "credentials.json")      # app password, written by the settings page
+MAILCOW_PATH = os.path.join(DATA_DIR, "mailcow.json")       # domain list, written by the settings page
+MAILCOW_HOSTNAME = ENV.get("MAILCOW_HOSTNAME", "")
+IMAP_HOST = ENV.get("IMAP_HOST", "dovecot")
+IMAP_PORT = int(ENV.get("IMAP_PORT", "993"))
+SMTP_HOST = ENV.get("SMTP_HOST", "postfix")
+SMTP_PORT = int(ENV.get("SMTP_PORT", "587"))
+SMTP_TLS = ENV.get("SMTP_TLS", "starttls")                   # "starttls" (587) or "ssl" (465)
+TLS_VERIFY = ENV.get("TLS_VERIFY", "1") != "0"               # only for tests against a self-signed server
 EXPORT_PATH = os.path.join(DATA_DIR, "dashboard.json")
 SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")   # edited in the web UI
 
@@ -63,18 +70,17 @@ ALERT_TO = [a.strip().lower() for a in str(CFG.get("alert_to", "")).split(",")
             if ADDR_RE.match(a.strip().lower()) and a.strip().lower() != MAILBOX]   # never alert into the report box
 OWN_IPS_MODE = CFG.get("own_ips_mode", "auto")               # "auto" (like mailcow) or "manual"
 OWN_IPS = set()                                             # filled in main() via own_ips()
-DB_PATH = CFG.get("db_path", os.path.join(BASE, "reports.db"))
-PUBLIC_URL = CFG.get("public_url", "")
+DB_PATH = ENV.get("DB_PATH", "/data/reports.db")
+PUBLIC_URL = f"https://{MAILCOW_HOSTNAME}/{WEB_SLUG}/" if MAILCOW_HOSTNAME else ""
 LANG = str(CFG.get("language", "en-gb")).lower()                # alert mails; the web page follows mailcow's UI language
 if not re.match(r"^[a-z]{2}(-[a-z]{2})?$", LANG):
     LANG = "en-gb"
-RETENTION_DAYS = int(CFG.get("retention_days", 365))
+RETENTION_DAYS = int(ENV.get("RETENTION_DAYS", "365"))
 RUN_TIME = str(CFG.get("run_time", "07:30"))                 # daily safety-net run (HH:MM, server time)
 if not re.match(r"^([01]\d|2[0-3]):[0-5]\d$", RUN_TIME):
     RUN_TIME = "07:30"
 RUN_NOW_FLAG = os.path.join(DATA_DIR, "run-now")            # created by the "Run now" button
 ACK_PATH = os.path.join(DATA_DIR, "ack.json")                # "done" marks set in the web UI: {issue id: {"ts": ...}}
-WATCH_UNIT = "/etc/systemd/system/mailcow-reports-mail.path"  # inotify watch on the report mailbox
 FOLDERS = ["INBOX", "Junk"]
 UNPROCESSED = "Unprocessed"                                  # non-reports and broken reports are moved here
 MAX_UNPACKED = 20 * 1024 * 1024                              # per attachment, guards against zip/gzip bombs
@@ -88,7 +94,7 @@ UNPROCESSED_KEEP_DAYS = 30                                   # parked mail older
 DRY_RUN = "--dry-run" in sys.argv
 DAY = 86400
 
-LANG_DIRS = [os.path.join(COMPOSE_DIR, "data/web", WEB_SLUG, "lang"),     # installed next to the web page
+LANG_DIRS = [os.path.join(PAGE_DIR, "lang"),                             # deployed next to the web page
              os.path.join(BASE, "..", "lang")]                            # source checkout (tests)
 
 
@@ -126,13 +132,8 @@ def tr(item):
 
 
 def mailcow_env():
-    env = {}
-    with open(os.path.join(COMPOSE_DIR, "mailcow.conf")) as f:
-        for line in f:
-            if "=" in line and not line.lstrip().startswith("#"):
-                k, v = line.rstrip("\n").split("=", 1)
-                env[k.strip()] = v.strip()
-    return env
+    """mailcow.conf values passed in by docker compose (SNAT_TO_SOURCE, SNAT6_TO_SOURCE)."""
+    return dict(ENV)
 
 
 def _public_ip(family, host):
@@ -200,58 +201,108 @@ def own_ips(con):
 
 
 def configured_domains():
-    """Domains from config, or all mailcow domains + alias domains ("auto")."""
-    doms = CFG.get("domains", "auto")
-    if isinstance(doms, list):
-        return doms
+    """mailcow domains + alias domains, exported by the settings page to _data/mailcow.json."""
     try:
-        env = mailcow_env()
-        sql = "SELECT domain FROM domain WHERE active=1 UNION SELECT alias_domain FROM alias_domain WHERE active=1 ORDER BY 1"
-        r = subprocess.run(["docker", "compose", "exec", "-T", "mysql-mailcow", "mysql", "-N", "-u" + env["DBUSER"],
-                            "-p" + env["DBPASS"], env["DBNAME"], "-e", sql], cwd=COMPOSE_DIR, capture_output=True,
-                           input=b"", timeout=60)
-        return [l.strip() for l in r.stdout.decode().splitlines() if l.strip()]
-    except (OSError, KeyError, subprocess.SubprocessError):
+        doms = read_untrusted_json(MAILCOW_PATH).get("domains", [])
+        return [d for d in doms if isinstance(d, str) and re.match(r"^[a-z0-9.-]{1,253}$", d)]
+    except (OSError, ValueError, AttributeError):
         return []                                  # dashboard then lists the domains seen in reports
 
 
 # --- mailbox
 
-def doveadm(*args, input_bytes=None):
-    cmd = ["docker", "compose", "exec", "-T", "dovecot-mailcow", "doveadm", *args]
-    r = subprocess.run(cmd, cwd=COMPOSE_DIR, input=input_bytes if input_bytes is not None else b"",
-                       capture_output=True, check=True, timeout=300)
-    return r.stdout
+class MailboxError(OSError):
+    pass
 
 
-def move_unprocessed(guid, uid):
+def credentials():
+    c = read_untrusted_json(CRED_PATH, limit=4096)
+    if not isinstance(c, dict) or str(c.get("user", "")).lower() != MAILBOX or not c.get("password"):
+        raise MailboxError("no app password for the report mailbox yet - save the settings once")
+    return MAILBOX, str(c["password"])
+
+
+def tls_context():
+    ctx = ssl.create_default_context()
+    if not TLS_VERIFY:
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+    return ctx
+
+
+class _IMAP(imaplib.IMAP4_SSL):
+    """IMAPS to dovecot inside mailcow-network; the certificate is checked against MAILCOW_HOSTNAME."""
+    def _create_socket(self, timeout):
+        sock = socket.create_connection((self.host, self.port), timeout)
+        return self.ssl_context.wrap_socket(sock, server_hostname=MAILCOW_HOSTNAME or self.host)
+
+
+class _SMTP(smtplib.SMTP):
+    """SMTP to postfix inside mailcow-network; STARTTLS certificate checked against MAILCOW_HOSTNAME."""
+    def connect(self, host="localhost", port=0, source_address=None):
+        res = super().connect(host, port, source_address)
+        self._host = MAILCOW_HOSTNAME or host          # connect() resets _host, starttls() uses it as SNI
+        return res
+
+
+class _SMTPS(smtplib.SMTP_SSL):
+    def _get_socket(self, host, port, timeout):
+        sock = socket.create_connection((host, port), timeout, self.source_address)
+        return self.context.wrap_socket(sock, server_hostname=MAILCOW_HOSTNAME or host)
+
+
+_imap = None
+
+
+def imap():
+    global _imap
+    if _imap is None:
+        user, pw = credentials()
+        conn = _IMAP(IMAP_HOST, IMAP_PORT, ssl_context=tls_context(), timeout=60)
+        conn.login(user, pw)
+        _imap = conn
+    return _imap
+
+
+def _ok(res, what):
+    typ, data = res
+    if typ != "OK":
+        raise MailboxError(f"{what}: {typ} {data!r}"[:300])
+    return data
+
+
+def _select(folder):
+    return _ok(imap().select(f'"{folder}"'), f"select {folder}")
+
+
+def move_unprocessed(folder, uid):
     """Park a message in the Unprocessed folder (created on demand) so it is handled only once."""
-    try:
-        doveadm("mailbox", "create", "-u", MAILBOX, UNPROCESSED)
-    except subprocess.CalledProcessError:
-        pass                                       # already exists
-    doveadm("move", "-u", MAILBOX, UNPROCESSED, "mailbox-guid", guid, "uid", uid)
+    imap().create(f'"{UNPROCESSED}"')             # NO if it already exists
+    _select(folder)
+    _ok(imap().uid("MOVE", uid, f'"{UNPROCESSED}"'), "move")
+
+
+def delete_message(folder, uid):
+    _select(folder)
+    _ok(imap().uid("STORE", uid, "+FLAGS.SILENT", "(\\Deleted)"), "store")
+    _ok(imap().uid("EXPUNGE", uid), "expunge")
 
 
 def list_messages():
-    # a mailbox created after dovecot cached a negative lookup would otherwise be "unknown"
-    doveadm("auth", "cache", "flush")
     out = []
     for folder in FOLDERS:
-        try:
-            lines = doveadm("search", "-u", MAILBOX, "mailbox", folder, "ALL").decode().splitlines()
-        except subprocess.CalledProcessError:
+        typ, _ = imap().select(f'"{folder}"')
+        if typ != "OK":
             continue                               # e.g. Junk not created yet
-        for line in lines:
-            parts = line.split()
-            if len(parts) == 2:
-                out.append((folder, parts[0], parts[1]))
+        for uid in (_ok(imap().uid("SEARCH", None, "ALL"), "search")[0] or b"").split():
+            out.append((folder, folder, uid.decode()))
     return out
 
 
-def fetch(guid, uid):
-    raw = doveadm("fetch", "-u", MAILBOX, "text", "mailbox-guid", guid, "uid", uid)
-    raw = raw[len(b"text: "):] if raw.startswith(b"text: ") else raw
+def fetch(folder, uid):
+    _select(folder)
+    data = _ok(imap().uid("FETCH", uid, "(BODY.PEEK[])"), "fetch")
+    raw = next((d[1] for d in data if isinstance(d, tuple)), b"")
     return email.message_from_bytes(raw, policy=email.policy.default)
 
 
@@ -545,7 +596,7 @@ def send_alert(findings):
     body += [""]
     if PUBLIC_URL:
         body += [fmt("mail_details", url=PUBLIC_URL)]
-    body += [fmt("mail_kept", box=MAILBOX, folder=UNPROCESSED), f"-- mailcow-report-dashboard @ {socket.gethostname()}"]
+    body += [fmt("mail_kept", box=MAILBOX, folder=UNPROCESSED), f"-- mailcow-report-dashboard @ {MAILCOW_HOSTNAME or socket.gethostname()}"]
     m = EmailMessage()
     m["From"] = f"{T['mail_sender']} <{MAILBOX}>"
     m["To"] = ", ".join(ALERT_TO)
@@ -557,11 +608,18 @@ def send_alert(findings):
         print(m)
         return []
     failed = []
-    for rcpt in ALERT_TO:
-        try:   # delivered straight into the INBOX - no SMTP, no spam filter, no DKIM needed
-            doveadm("save", "-u", rcpt, "-m", "INBOX", input_bytes=m.as_bytes())
-        except (subprocess.SubprocessError, OSError) as e:
-            failed.append(f"{rcpt}: {type(e).__name__}")
+    try:
+        user, pw = credentials()
+        smtp = _SMTPS(timeout=60, context=tls_context()) if SMTP_TLS == "ssl" else _SMTP(timeout=60)
+        with smtp:
+            smtp.connect(SMTP_HOST, SMTP_PORT)
+            if SMTP_TLS != "ssl":
+                smtp.starttls(context=tls_context())
+            smtp.login(user, pw)
+            refused = smtp.send_message(m, from_addr=MAILBOX, to_addrs=ALERT_TO)
+            failed = [f"{r}: {c[0]}" for r, c in refused.items()]
+    except (smtplib.SMTPException, OSError) as e:
+        failed = [f"{r}: {type(e).__name__}" for r in ALERT_TO]
     return failed
 
 
@@ -600,6 +658,14 @@ def export(con):
     since30, since90, since365 = now - 30 * DAY, now - 90 * DAY, now - 365 * DAY
     q = lambda sql, *a: con.execute(sql, a).fetchall()  # noqa: E731
 
+    # "done" marks from the UI: a problem only counts if a report about it arrived after the mark
+    ack = _acks()
+    open_since = lambda iid, rcv: rcv is not None and rcv > ack.get(iid, 0)  # noqa: E731
+
+    def own_key(ip, dk, sp, hf, da, sa, rs):
+        keys = [k for k, _ in explain_items(ip, dk, sp, hf, _j(da), _j(sa), _j(rs))]
+        return next((k for k in ("dkim_none", "dkim_bad", "spf_fail", "spf_dns", "unaligned", "temp") if k in keys), "other")
+
     # domains (last 30 days)
     domains = []
     domains_cfg = configured_domains()
@@ -616,10 +682,20 @@ def export(con):
         policy = q("SELECT policy FROM reports WHERE domain=? AND kind='dmarc' ORDER BY date_end DESC LIMIT 1", d)
         days = q("SELECT COUNT(DISTINCT date_end/86400) FROM reports WHERE domain=? AND kind='dmarc' AND date_end>=?", d, since30)[0][0]
         reporters = q("SELECT COUNT(DISTINCT org) FROM reports WHERE domain=? AND date_end>=?", d, since30)[0][0]
+        open_own = sum(cnt for ip, cnt, dk, sp, hf, da, sa, rs, rcv in q(
+            "SELECT r.source_ip, r.count, r.dkim, r.spf, r.header_from, r.dkim_auth, r.spf_auth, r.reasons, p.received"
+            " FROM dmarc_rows r JOIN reports p ON p.id=r.report WHERE p.domain=? AND r.own=1"
+            " AND NOT(r.dkim='pass' OR r.spf='pass') AND p.date_end>=?", d, since30)
+            if open_since("own:" + own_key(ip, dk, sp, hf, da, sa, rs), rcv))
+        open_tls = sum(cnt for rt, cnt, rcv in q(
+            "SELECT f.result_type, f.count, p.received FROM tls_fail f JOIN reports p ON p.id=f.report"
+            " WHERE p.domain=? AND p.date_end>=?", d, since30) if open_since(f"tls:{rt}", rcv))
         if not last:
             status, note = "grey", "no_reports"
-        elif own[1] or tls[1]:
+        elif open_own or open_tls:
             status, note = "red", "errors"
+        elif own[1] or tls[1]:
+            status, note = "green", "ok_acked"      # all failures of the last 30 days are marked as done
         elif own[0] == 0:
             status, note = "green", "receive_only"
         else:
@@ -695,8 +771,6 @@ def export(con):
 
     # ---- plain-language overview (last 30 days). Every issue has a stable id; when it is marked as
     # done in the UI only reports that arrived afterwards count, so it comes back only for new cases.
-    ack = _acks()
-    open_since = lambda iid, rcv: rcv is not None and rcv > ack.get(iid, 0)  # noqa: E731
     issues = []
     own_total, own_ok = q("SELECT COALESCE(SUM(r.count),0), COALESCE(SUM(CASE WHEN r.dkim='pass' OR r.spf='pass' THEN r.count END),0)"
                           " FROM dmarc_rows r JOIN reports p ON p.id=r.report WHERE r.own=1 AND p.date_end>=?", since30)[0]
@@ -712,8 +786,7 @@ def export(con):
             "SELECT r.source_ip, r.count, r.dkim, r.spf, r.header_from, r.dkim_auth, r.spf_auth, r.reasons, p.received"
             " FROM dmarc_rows r JOIN reports p ON p.id=r.report WHERE r.own=1 AND NOT(r.dkim='pass' OR r.spf='pass')"
             " AND p.date_end>=?", since30):
-        keys = [k for k, _ in explain_items(ip, dk, sp, hf, _j(da), _j(sa), _j(rs))]
-        key = next((k for k in ("dkim_none", "dkim_bad", "spf_fail", "spf_dns", "unaligned", "temp") if k in keys), "other")
+        key = own_key(ip, dk, sp, hf, da, sa, rs)
         if open_since("own:" + key, rcv):
             add("own:" + key, cnt, rcv)
     for rt, cnt, rcv in q("SELECT f.result_type, f.count, p.received FROM tls_fail f JOIN reports p ON p.id=f.report"
@@ -832,43 +905,6 @@ def write_atomic(path, text, mode=0o644):
 
 # --- main
 
-def mailbox_dirs():
-    """Maildir 'new' folders of the report mailbox (INBOX + Junk) inside the vmail volume."""
-    if not MAILBOX:
-        return []
-    r = subprocess.run(["docker", "volume", "ls", "-q"], capture_output=True, text=True)
-    vol = next((v for v in r.stdout.split() if v.endswith("vmail-vol-1")), None)
-    if not vol:
-        return []
-    mp = subprocess.run(["docker", "volume", "inspect", "-f", "{{.Mountpoint}}", vol], capture_output=True, text=True).stdout.strip()
-    local, domain = MAILBOX.split("@", 1)          # MAILBOX is validated against ADDR_RE
-    base = os.path.join(mp, domain, local, "Maildir")
-    if "\n" in base or not base.startswith("/"):
-        return []
-    return [os.path.join(base, "new"), os.path.join(base, ".Junk", "new")]
-
-
-def ensure_watch():
-    """Keep mailcow-reports-mail.path pointing at the configured mailbox (changes in the UI)."""
-    dirs = mailbox_dirs()
-    body = ("[Unit]\nDescription=mailcow report dashboard - process new reports as soon as they arrive\n\n[Path]\n"
-            + "".join(f"PathChanged={d}\n" for d in dirs)
-            + "Unit=mailcow-reports-mail.service\nTriggerLimitIntervalSec=60\nTriggerLimitBurst=20\n\n"
-              "[Install]\nWantedBy=paths.target\n")
-    try:
-        with open(WATCH_UNIT) as f:
-            if f.read() == body:
-                return
-    except FileNotFoundError:
-        pass
-    if not dirs:
-        return
-    write_atomic(WATCH_UNIT, body)
-    subprocess.run(["systemctl", "daemon-reload"], check=False)
-    subprocess.run(["systemctl", "enable", "--now", "mailcow-reports-mail.path"], check=False, capture_output=True)
-    subprocess.run(["systemctl", "restart", "mailcow-reports-mail.path"], check=False)
-
-
 def due(con):
     """--scheduled: run when "run now" was requested, or once a day after RUN_TIME."""
     if os.path.lexists(RUN_NOW_FLAG):
@@ -932,25 +968,39 @@ def reclassify(con):
 def _safe(fn, *args):
     try:
         return fn(*args)
-    except (subprocess.SubprocessError, OSError) as e:
+    except (imaplib.IMAP4.error, OSError) as e:
         print(f"warning: {getattr(fn, '__name__', fn)}: {e}", file=sys.stderr)
         return None
 
 
-def _header(guid, uid, name):
+def _header(folder, uid, name):
     try:
-        out = doveadm("fetch", "-u", MAILBOX, f"hdr.{name}", "mailbox-guid", guid, "uid", uid).decode(errors="replace")
-        return " ".join(out.split(":", 1)[-1].split())[:120]
-    except (subprocess.SubprocessError, OSError):
+        _select(folder)
+        data = _ok(imap().uid("FETCH", uid, f"(BODY.PEEK[HEADER.FIELDS ({name.upper()})])"), "fetch")
+        raw = next((d[1] for d in data if isinstance(d, tuple)), b"").decode(errors="replace")
+        return " ".join(raw.split(":", 1)[-1].split())[:120] or "?"
+    except (imaplib.IMAP4.error, OSError):
         return "?"
 
 
 def _count(folder):
     try:
-        out = doveadm("mailbox", "status", "-u", MAILBOX, "messages", folder).decode()
-        return int(out.strip().split("=")[-1])
-    except (subprocess.SubprocessError, OSError, ValueError):
+        data = _ok(imap().status(f'"{folder}"', "(MESSAGES)"), "status")
+        return int(re.search(rb"MESSAGES (\d+)", data[0]).group(1))
+    except (imaplib.IMAP4.error, OSError, AttributeError):
         return 0
+
+
+def _expunge_older(folder, days):
+    """Delete parked mail older than `days` (by arrival date)."""
+    try:
+        _select(folder)
+        before = time.strftime("%d-%b-%Y", time.gmtime(time.time() - days * DAY))
+        uids = (_ok(imap().uid("SEARCH", None, "BEFORE", before), "search")[0] or b"").split()
+        for uid in uids:
+            delete_message(folder, uid.decode())
+    except (imaplib.IMAP4.error, OSError) as e:
+        print(f"warning: cleanup of {folder}: {e}", file=sys.stderr)
 
 
 def main():
@@ -959,11 +1009,6 @@ def main():
     lock = open(DB_PATH + ".lock", "w")
     fcntl.flock(lock, fcntl.LOCK_EX)
     con = db_open()
-    if not DRY_RUN and os.geteuid() == 0:
-        try:
-            ensure_watch()
-        except (OSError, subprocess.SubprocessError) as e:
-            print(f"warning: could not update the new-mail watch: {e}", file=sys.stderr)
     con.execute("BEGIN")
     go = "--scheduled" not in sys.argv or due(con)
     con.execute("COMMIT")
@@ -973,9 +1018,16 @@ def main():
     OWN_IPS = own_ips(con)
     reclassify(con)
     con.execute("COMMIT")
-    if "--export-only" in sys.argv or not MAILBOX:
+    ready = bool(MAILBOX)
+    if ready and "--export-only" not in sys.argv:
+        try:
+            imap()
+        except (imaplib.IMAP4.error, OSError) as e:
+            print(f"mailbox not reachable: {e}", file=sys.stderr)
+            ready = False
+    if "--export-only" in sys.argv or not ready:
         con.execute("BEGIN")
-        if not MAILBOX and "--export-only" not in sys.argv:
+        if not ready and "--export-only" not in sys.argv:
             con.execute("INSERT INTO runs VALUES (?,?,?,?)", (int(time.time()), 0, 0, json.dumps({"no_mailbox": True})))
         export(con)
         con.execute("COMMIT")
@@ -1009,7 +1061,7 @@ def main():
                 for d, n in res["spoof"].items():
                     findings["spoof"][d] = findings["spoof"].get(d, 0) + n
                 if not DRY_RUN:
-                    _safe(doveadm, "expunge", "-u", MAILBOX, "mailbox-guid", guid, "uid", uid)
+                    _safe(delete_message, guid, uid)
             else:                                  # spam/foreign mail in the report box: park silently
                 findings["foreign"] += 1
                 if not DRY_RUN:
@@ -1034,7 +1086,7 @@ def main():
         return
     con.execute("BEGIN")
     if _count(UNPROCESSED):                        # folder exists and has mail: drop what is older than 30 days
-        _safe(doveadm, "expunge", "-u", MAILBOX, "mailbox", UNPROCESSED, "savedbefore", f"{UNPROCESSED_KEEP_DAYS}d")
+        _expunge_older(UNPROCESSED, UNPROCESSED_KEEP_DAYS)
     state_set(con, "unprocessed", str(_count(UNPROCESSED)))
     state_set(con, "alert_error", ", ".join(alert_failed))
     con.execute("DELETE FROM reports WHERE COALESCE(date_end, received) < ?", (int(time.time()) - RETENTION_DAYS * DAY,))
@@ -1045,4 +1097,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    finally:
+        if _imap is not None:
+            try:
+                _imap.logout()
+            except (imaplib.IMAP4.error, OSError):
+                pass

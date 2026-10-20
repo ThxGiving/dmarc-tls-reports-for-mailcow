@@ -1,0 +1,25 @@
+# Add this to docker-compose.override.yml in your mailcow folder (next to mailcow.conf),
+# then run: docker compose up -d   and open https://<mailcow>/admin/dmarc/ as admin
+services:
+  reports-mailcow:
+    image: ghcr.io/thxgiving/mailcow-report-dashboard:latest
+    restart: always
+    environment:
+      - SLUG=admin/dmarc                              # page at https://<mailcow>/admin/dmarc/
+      - MAILCOW_HOSTNAME=${MAILCOW_HOSTNAME}
+      - HTTPS_PORT=${HTTPS_PORT:-443}
+      - SNAT_TO_SOURCE=${SNAT_TO_SOURCE:-}
+      - SNAT6_TO_SOURCE=${SNAT6_TO_SOURCE:-}
+      - TZ=${TZ}
+    volumes:
+      - ./data/web/admin/dmarc:/page                  # same path as SLUG
+      - ./data/conf/nginx:/nginx-conf                 # the container writes site.mailcow-reports.custom here
+      - ./data/web/css/build:/mailcow-css             # Apps menu entry for admins only (custom CSS block)
+      - reports-vol-1:/data                           # SQLite database
+    networks:
+      mailcow-network:
+        aliases:
+          - reports
+
+volumes:
+  reports-vol-1:
