@@ -1,4 +1,4 @@
-# mailcow DMARC/TLS reports
+# DMARC/TLS reports for mailcow
 
 Add-on for [mailcow-dockerized](https://github.com/mailcow/mailcow-dockerized) that collects the DMARC
 aggregate (RUA) and SMTP TLS (TLS-RPT) reports other mail servers send about your domains, sends an alert
@@ -131,3 +131,6 @@ and the app password "mailcow-report-dashboard" in the report mailbox's settings
 ## License
 
 MIT
+
+This is an independent project and not affiliated with or endorsed by The Infrastructure Company GmbH.
+mailcow is a registered trademark of The Infrastructure Company GmbH.
