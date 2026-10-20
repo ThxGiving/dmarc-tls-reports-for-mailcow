@@ -596,7 +596,7 @@ def send_alert(findings):
     body += [""]
     if PUBLIC_URL:
         body += [fmt("mail_details", url=PUBLIC_URL)]
-    body += [fmt("mail_kept", box=MAILBOX, folder=UNPROCESSED), f"-- mailcow-report-dashboard @ {MAILCOW_HOSTNAME or socket.gethostname()}"]
+    body += [fmt("mail_kept", box=MAILBOX, folder=UNPROCESSED), f"-- DMARC/TLS reports for mailcow @ {MAILCOW_HOSTNAME or socket.gethostname()}"]
     m = EmailMessage()
     m["From"] = f"{T['mail_sender']} <{MAILBOX}>"
     m["To"] = ", ".join(ALERT_TO)

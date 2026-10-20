@@ -8,7 +8,7 @@ COPY lang ./lang
 COPY nginx ./nginx
 ARG APP_VERSION=dev
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 APP_VERSION=${APP_VERSION}
-LABEL org.opencontainers.image.source="https://github.com/ThxGiving/mailcow-report-dashboard" \
+LABEL org.opencontainers.image.source="https://github.com/ThxGiving/dmarc-tls-reports-for-mailcow" \
       org.opencontainers.image.description="DMARC and TLS-RPT reports for mailcow, shown inside the mailcow UI" \
       org.opencontainers.image.licenses="MIT"
 VOLUME /data
