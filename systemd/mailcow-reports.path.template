@@ -1,0 +1,9 @@
+[Unit]
+Description=mailcow report dashboard – "Run now" requests from the web UI
+
+[Path]
+PathExists=__DATA_DIR__/run-now
+Unit=mailcow-reports.service
+
+[Install]
+WantedBy=paths.target

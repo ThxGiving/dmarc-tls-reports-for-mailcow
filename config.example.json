@@ -1,0 +1,7 @@
+{
+  "mailcow_dir": "/opt/mailcow-dockerized",
+  "web_slug": "reports",
+  "public_url": "https://mail.example.org/reports/",
+  "retention_days": 365,
+  "domains": "auto"
+}

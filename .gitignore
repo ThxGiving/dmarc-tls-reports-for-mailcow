@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.db
+config.json
+settings.json
+dashboard.json

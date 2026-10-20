@@ -1,0 +1,15 @@
+# mailcow-report-dashboard: never serve the raw data files.
+# Installed by install.sh as data/conf/nginx/site.mailcow-reports.custom (update-safe).
+location ^~ /__SLUG__/_data/ {
+    deny all;
+    return 404;
+}
+# only the page itself is public (behind mailcow's admin login); no language files, no marker files
+location ^~ /__SLUG__/lang/ {
+    deny all;
+    return 404;
+}
+location ~ ^/__SLUG__/\. {
+    deny all;
+    return 404;
+}

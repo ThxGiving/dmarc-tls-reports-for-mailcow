@@ -1,0 +1,30 @@
+[Unit]
+Description=mailcow report dashboard – process DMARC/TLS-RPT reports
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# --scheduled: only does work when due (daily time set in the web UI) or when "Run now" was clicked
+ExecStart=/usr/bin/python3 /opt/mailcow-reports/mailcow_reports.py --scheduled
+Nice=10
+# hardening: needs docker (doveadm via docker compose) and systemctl (new-mail watch), so it runs as
+# root; everything else is fenced off and bounded
+TimeoutStartSec=30min
+MemoryMax=1G
+TasksMax=64
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=read-only
+ProtectSystem=true
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictNamespaces=yes
+SystemCallArchitectures=native
+UMask=0077
