@@ -27,6 +27,7 @@ CSS_FILE = os.path.join(ENV.get("CSS_DIR", "/mailcow-css"), "0081-custom-mailcow
 CSS_BEGIN, CSS_END = "/* mailcow-report-dashboard: begin */", "/* mailcow-report-dashboard: end */"
 WWW = 82                                            # www-data in php-fpm-mailcow
 POLL = 30
+STARTUP_GRACE = 300            # after a (re)start mailcow's nginx/php-fpm may need a moment
 VERSION = ENV.get("APP_VERSION", "dev")
 
 
@@ -129,7 +130,7 @@ def ensure_menu_css():
         log("Apps menu entry limited to admins (data/web/css/build/0081-custom-mailcow.css)")
 
 
-def protected():
+def protected(quiet=False):
     """True only if nginx answers 403/404 for a file in _data/ while the page itself answers,
     i.e. we really talked to mailcow's vhost and it refuses to serve the data folder."""
     probe = os.path.join(DATA_DIR, "probe.txt")
@@ -138,12 +139,13 @@ def protected():
     try:
         data_code, page_code = _get(f"/{SLUG}/_data/probe.txt"), _get(f"/{SLUG}/")
     except OSError as e:
-        log(f"protection check failed: {e}")
+        if not quiet:
+            log(f"protection check failed: {e}")
         return False
     finally:
         os.remove(probe)
     ok = data_code in ("403", "404") and page_code in ("200", "301", "302")
-    if not ok:
+    if not ok and not quiet:
         log(f"protection check: _data -> {data_code}, page -> {page_code}")
     return ok
 
@@ -223,22 +225,27 @@ class Poller:
 
 
 def main():
+    started = time.time()
     deploy()
     ensure_menu_css()
-    prot = protected()
+    prot = protected(quiet=True)
     write_status(prot)
-    log(f"started, version {VERSION}, _data protected: {prot}")
+    log(f"started, version {VERSION}, _data protected: {prot}" + ("" if prot else " (waiting for mailcow's web server)"))
     if not os.path.exists(CRED):
         log(f"not set up yet: open https://{HOSTNAME or '<mailcow>'}/{SLUG}/ as mailcow admin")
     run_collector("--export-only")
-    poller, last_sched, last_prot = Poller(), 0, time.time()
+    poller, last_sched, last_prot, warned = Poller(), 0, time.time(), False
     while True:
         now = time.time()
-        if not prot and now - last_prot > 60:          # waiting for the nginx restart
-            prot, last_prot = protected(), now
+        starting = now - started < STARTUP_GRACE
+        if not prot and now - last_prot > (10 if starting else 60):
+            prot, last_prot = protected(quiet=starting), now
             write_status(prot)
             if prot:
                 log("_data is protected now")
+            elif not starting and not warned:
+                log("_data still not confirmed as protected; setup stays locked (see the message on the page)")
+                warned = True
         elif prot and now - last_prot > 3600:         # re-check hourly
             prot, last_prot = protected(), now
             write_status(prot)
@@ -246,7 +253,7 @@ def main():
             run_collector("--scheduled")
             last_sched = now
         if not prot:
-            time.sleep(POLL)
+            time.sleep(10 if starting else POLL)
         elif poller.wait_for_mail(POLL):           # returns early when dovecot announces new mail
             run_collector()
 
