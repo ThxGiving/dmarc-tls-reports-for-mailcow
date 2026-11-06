@@ -245,5 +245,6 @@
   "setup_bookmark": "Pagina este accesibilă doar administratorilor mailcow. Salvați-o ca marcaj sau folosiți intrarea din meniul Apps (opțiunea de mai jos):",
   "not_protected_t": "Configurare neterminată: nginx încă servește dosarul de date",
   "not_protected_d": "Containerul nu a putut confirma încă faptul că nginx refuză să servească dosarul de date. Până atunci configurarea este blocată; containerul verifică din nou în fiecare minut. Dacă mesajul nu dispare, reporniți o dată nginx în dosarul mailcow:",
+  "report_mailbox_shared": "Căsuța pentru rapoarte este o căsuță partajată. Căsuțele partajate nu au autentificare proprie, așa că rapoartele nu mai pot fi citite. Selectați o căsuță obișnuită în setări.",
   "d_ok_acked": "OK (rezolvat)"
 }

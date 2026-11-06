@@ -245,5 +245,6 @@
   "setup_bookmark": "Stránka je dostupná len správcom mailcow. Uložte si ju do záložiek alebo použite položku v ponuke Apps (voľba nižšie):",
   "not_protected_t": "Nastavenie nedokončené: nginx stále sprístupňuje priečinok s dátami",
   "not_protected_d": "Kontajner zatiaľ nepotvrdil, že nginx odmieta sprístupniť priečinok s dátami. Dovtedy je nastavenie zamknuté; kontajner to každú minútu znova overuje. Ak hlásenie nezmizne, raz reštartujte nginx v priečinku mailcow:",
+  "report_mailbox_shared": "Poštová schránka pre hlásenia je zdieľaná. Zdieľané schránky nemajú vlastné prihlásenie, takže hlásenia už nie je možné čítať. V nastaveniach vyberte bežnú schránku.",
   "d_ok_acked": "OK (vybavené)"
 }

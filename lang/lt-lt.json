@@ -245,5 +245,6 @@
   "setup_bookmark": "Puslapis pasiekiamas tik mailcow administratoriams. Išsaugokite jį žymėse arba naudokite Apps meniu įrašą (parinktis žemiau):",
   "not_protected_t": "Nustatymas nebaigtas: nginx vis dar pateikia duomenų aplanką",
   "not_protected_d": "Konteineris dar negalėjo patvirtinti, kad nginx nepateikia duomenų aplanko. Iki tol nustatymas užrakintas; konteineris tikrina kas minutę. Jei pranešimas neišnyksta, vieną kartą paleiskite nginx iš naujo mailcow aplanke:",
+  "report_mailbox_shared": "Ataskaitų pašto dėžutė yra bendrinama. Bendrinamos dėžutės neturi savo prisijungimo, todėl ataskaitų nebegalima skaityti. Nustatymuose pasirinkite įprastą pašto dėžutę.",
   "d_ok_acked": "OK (atlikta)"
 }

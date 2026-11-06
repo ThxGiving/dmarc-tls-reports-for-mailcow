@@ -245,5 +245,6 @@
   "setup_bookmark": "A página só é acessível para administradores do mailcow. Salve-a nos favoritos ou use a entrada do menu Apps (opção abaixo):",
   "not_protected_t": "Configuração incompleta: o nginx ainda serve a pasta de dados",
   "not_protected_d": "O contêiner ainda não conseguiu confirmar que o nginx recusa servir a pasta de dados. Até lá a configuração fica bloqueada; o contêiner verifica de novo a cada minuto. Se o aviso não sumir, reinicie o nginx uma vez na pasta do mailcow:",
+  "report_mailbox_shared": "A caixa de relatórios é uma caixa compartilhada. Caixas compartilhadas não têm login próprio, portanto os relatórios não podem mais ser lidos. Selecione uma caixa normal nas configurações.",
   "d_ok_acked": "OK (resolvido)"
 }

@@ -245,5 +245,6 @@
   "setup_bookmark": "Trang chỉ dành cho quản trị viên mailcow. Hãy lưu dấu trang hoặc dùng mục trong menu Apps (tùy chọn bên dưới):",
   "not_protected_t": "Chưa thiết lập xong: nginx vẫn phục vụ thư mục dữ liệu",
   "not_protected_d": "Container chưa xác nhận được rằng nginx từ chối phục vụ thư mục dữ liệu. Cho đến lúc đó việc thiết lập bị khóa; container kiểm tra lại mỗi phút. Nếu thông báo không biến mất, hãy khởi động lại nginx một lần trong thư mục mailcow:",
+  "report_mailbox_shared": "Hộp thư báo cáo là hộp thư dùng chung. Hộp thư dùng chung không có đăng nhập riêng nên không thể đọc báo cáo nữa. Hãy chọn một hộp thư thông thường trong phần cài đặt.",
   "d_ok_acked": "OK (đã xử lý)"
 }

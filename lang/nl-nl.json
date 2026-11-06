@@ -245,5 +245,6 @@
   "setup_bookmark": "De pagina is alleen bereikbaar voor mailcow-beheerders. Sla haar op als bladwijzer of gebruik het item in het Apps-menu (optie hieronder):",
   "not_protected_t": "Instellen niet voltooid: nginx levert de datamap nog uit",
   "not_protected_d": "De container kon nog niet bevestigen dat nginx de datamap weigert. Tot die tijd is het instellen geblokkeerd; de container controleert elke minuut opnieuw. Verdwijnt de melding niet, herstart nginx dan eenmaal in de mailcow-map:",
+  "report_mailbox_shared": "De rapportenmailbox is een gedeelde mailbox. Gedeelde mailboxen hebben geen eigen login, dus rapporten kunnen niet meer worden gelezen. Selecteer een gewone mailbox in de instellingen.",
   "d_ok_acked": "OK (afgehandeld)"
 }

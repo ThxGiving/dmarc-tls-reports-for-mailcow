@@ -245,5 +245,6 @@
   "setup_bookmark": "Sayfaya yalnızca mailcow yöneticileri erişebilir. Yer imlerine ekleyin veya Apps menüsündeki girişi kullanın (aşağıdaki seçenek):",
   "not_protected_t": "Kurulum tamamlanmadı: nginx veri klasörünü hâlâ sunuyor",
   "not_protected_d": "Konteyner, nginx'in veri klasörünü sunmayı reddettiğini henüz doğrulayamadı. O zamana kadar kurulum kilitli; konteyner her dakika yeniden kontrol eder. Uyarı kaybolmazsa mailcow klasöründe nginx'i bir kez yeniden başlatın:",
+  "report_mailbox_shared": "Rapor posta kutusu paylaşılan bir posta kutusudur. Paylaşılan posta kutularının kendi oturum açma bilgisi yoktur, bu nedenle raporlar artık okunamaz. Ayarlardan normal bir posta kutusu seçin.",
   "d_ok_acked": "Tamam (çözüldü)"
 }

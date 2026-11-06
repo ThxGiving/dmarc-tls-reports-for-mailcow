@@ -245,5 +245,6 @@
   "setup_bookmark": "Strona jest dostępna tylko dla administratorów mailcow. Dodaj ją do zakładek lub użyj pozycji w menu Apps (opcja poniżej):",
   "not_protected_t": "Konfiguracja niezakończona: nginx nadal udostępnia folder danych",
   "not_protected_d": "Kontener nie mógł jeszcze potwierdzić, że nginx odmawia udostępnienia folderu danych. Do tego czasu konfiguracja jest zablokowana; kontener sprawdza ponownie co minutę. Jeśli komunikat nie zniknie, uruchom ponownie nginx raz w folderze mailcow:",
+  "report_mailbox_shared": "Skrzynka raportów jest skrzynką współdzieloną. Skrzynki współdzielone nie mają własnego logowania, więc raportów nie można już odczytać. Wybierz zwykłą skrzynkę w ustawieniach.",
   "d_ok_acked": "OK (załatwione)"
 }

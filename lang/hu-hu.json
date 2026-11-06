@@ -245,5 +245,6 @@
   "setup_bookmark": "Az oldal csak mailcow-adminisztrátorok számára érhető el. Mentse könyvjelzőként, vagy használja az Apps menü bejegyzését (lenti opció):",
   "not_protected_t": "A beállítás nincs kész: az nginx még kiszolgálja az adatmappát",
   "not_protected_d": "A konténer még nem tudta megerősíteni, hogy az nginx megtagadja az adatmappa kiszolgálását. Addig a beállítás zárolva van; a konténer percenként újra ellenőrzi. Ha az üzenet nem tűnik el, indítsa újra egyszer az nginx-et a mailcow mappában:",
+  "report_mailbox_shared": "A jelentések postafiókja megosztott postafiók. A megosztott postafiókoknak nincs saját bejelentkezésük, ezért a jelentések már nem olvashatók. Válasszon normál postafiókot a beállításokban.",
   "d_ok_acked": "OK (kezelve)"
 }

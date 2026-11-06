@@ -245,5 +245,6 @@
   "setup_bookmark": "Sahifa faqat mailcow administratorlari uchun ochiq. Uni xatcho‘pga saqlang yoki Apps menyusidagi bandidan foydalaning (quyidagi variant):",
   "not_protected_t": "Sozlash tugallanmagan: nginx hali ham ma’lumotlar papkasini taqdim etmoqda",
   "not_protected_d": "Konteyner nginx ma’lumotlar papkasini taqdim etmasligini hali tasdiqlay olmadi. Ungacha sozlash bloklangan; konteyner har daqiqada qayta tekshiradi. Xabar yo‘qolmasa, mailcow papkasida nginx'ni bir marta qayta ishga tushiring:",
+  "report_mailbox_shared": "Hisobotlar pochta qutisi umumiy pochta qutisidir. Umumiy qutilarning o'z kirishi yo'q, shuning uchun hisobotlarni endi o'qib bo'lmaydi. Sozlamalarda oddiy pochta qutisini tanlang.",
   "d_ok_acked": "OK (bajarildi)"
 }

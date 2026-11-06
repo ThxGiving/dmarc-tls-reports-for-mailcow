@@ -245,5 +245,6 @@
   "setup_bookmark": "La page n'est accessible qu'aux administrateurs mailcow. Ajoutez-la à vos favoris ou utilisez l'entrée du menu Apps (option ci-dessous) :",
   "not_protected_t": "Configuration inachevée : nginx sert encore le dossier de données",
   "not_protected_d": "Le conteneur n'a pas encore pu confirmer que nginx refuse de servir le dossier de données. La configuration est bloquée d'ici là ; le conteneur revérifie chaque minute. Si le message ne disparaît pas, redémarrez nginx une fois dans le dossier mailcow :",
+  "report_mailbox_shared": "La boîte aux lettres des rapports est une boîte partagée. Les boîtes partagées n'ont pas de connexion propre, les rapports ne peuvent donc plus être lus. Sélectionnez une boîte normale dans les paramètres.",
   "d_ok_acked": "OK (traité)"
 }

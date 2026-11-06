@@ -245,5 +245,6 @@
   "setup_bookmark": "此页面仅对 mailcow 管理员开放。请将其加入书签，或使用 Apps 菜单中的条目（见下方选项）：",
   "not_protected_t": "设置未完成：nginx 仍在提供数据文件夹",
   "not_protected_d": "容器尚未确认 nginx 拒绝提供数据文件夹。在此之前设置被锁定；容器每分钟重新检查一次。如果提示不消失，请在 mailcow 文件夹中重启一次 nginx：",
+  "report_mailbox_shared": "报告邮箱是共享邮箱。共享邮箱没有自己的登录,因此无法再读取报告。请在设置中选择普通邮箱。",
   "d_ok_acked": "OK（已处理）"
 }

@@ -245,5 +245,6 @@
   "setup_bookmark": "Sivu on vain mailcow-ylläpitäjien käytettävissä. Tallenna se kirjanmerkiksi tai käytä Apps-valikon kohtaa (asetus alla):",
   "not_protected_t": "Käyttöönotto kesken: nginx jakaa yhä datakansiota",
   "not_protected_d": "Kontti ei ole vielä voinut varmistaa, että nginx estää datakansion. Siihen asti käyttöönotto on lukittu; kontti tarkistaa asian minuutin välein. Jos ilmoitus ei katoa, käynnistä nginx kerran uudelleen mailcow-kansiossa:",
+  "report_mailbox_shared": "Raporttipostilaatikko on jaettu postilaatikko. Jaetuilla postilaatikoilla ei ole omaa kirjautumista, joten raportteja ei voi enää lukea. Valitse asetuksista tavallinen postilaatikko.",
   "d_ok_acked": "OK (kuitattu)"
 }

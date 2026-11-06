@@ -245,5 +245,6 @@
   "setup_bookmark": "Stran je dostopna samo skrbnikom mailcow. Shranite jo med zaznamke ali uporabite vnos v meniju Apps (možnost spodaj):",
   "not_protected_t": "Nastavitev ni končana: nginx še vedno streže mapo s podatki",
   "not_protected_d": "Vsebnik še ni mogel potrditi, da nginx zavrača streženje mape s podatki. Do takrat je nastavitev zaklenjena; vsebnik preverja vsako minuto. Če obvestilo ne izgine, enkrat znova zaženite nginx v mapi mailcow:",
+  "report_mailbox_shared": "Nabiralnik za poročila je skupni nabiralnik. Skupni nabiralniki nimajo lastne prijave, zato poročil ni več mogoče brati. V nastavitvah izberite običajen nabiralnik.",
   "d_ok_acked": "OK (urejeno)"
 }

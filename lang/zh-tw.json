@@ -245,5 +245,6 @@
   "setup_bookmark": "此頁面僅開放給 mailcow 管理員。請加入書籤，或使用 Apps 選單中的項目（見下方選項）：",
   "not_protected_t": "設定未完成：nginx 仍在提供資料夾",
   "not_protected_d": "容器尚未確認 nginx 拒絕提供資料夾。在此之前設定會被鎖定；容器每分鐘重新檢查一次。如果提示沒有消失，請在 mailcow 資料夾中重新啟動一次 nginx：",
+  "report_mailbox_shared": "報告信箱是共用信箱。共用信箱沒有自己的登入,因此無法再讀取報告。請在設定中選擇一般信箱。",
   "d_ok_acked": "OK（已處理）"
 }

@@ -245,5 +245,6 @@
   "setup_bookmark": "Siden er bare tilgjengelig for mailcow-administratorer. Lagre den som bokmerke, eller bruk oppføringen i Apps-menyen (valget nedenfor):",
   "not_protected_t": "Oppsettet er ikke fullført: nginx leverer fortsatt datamappen",
   "not_protected_d": "Containeren har ennå ikke kunnet bekrefte at nginx nekter å levere datamappen. Til da er oppsettet låst; containeren sjekker på nytt hvert minutt. Hvis meldingen ikke forsvinner, start nginx på nytt én gang i mailcow-mappen:",
+  "report_mailbox_shared": "Rapportpostkassen er en delt postkasse. Delte postkasser har ikke egen innlogging, så rapporter kan ikke lenger leses. Velg en vanlig postkasse i innstillingene.",
   "d_ok_acked": "OK (håndtert)"
 }

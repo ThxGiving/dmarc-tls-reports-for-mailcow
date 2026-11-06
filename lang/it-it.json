@@ -245,5 +245,6 @@
   "setup_bookmark": "La pagina è accessibile solo agli amministratori di mailcow. Salvarla nei preferiti o usare la voce nel menu Apps (opzione qui sotto):",
   "not_protected_t": "Configurazione non completata: nginx serve ancora la cartella dei dati",
   "not_protected_d": "Il container non ha ancora potuto confermare che nginx rifiuta di servire la cartella dei dati. Fino ad allora la configurazione è bloccata; il container ricontrolla ogni minuto. Se l'avviso non scompare, riavviare nginx una volta nella cartella di mailcow:",
+  "report_mailbox_shared": "La casella dei report è una casella condivisa. Le caselle condivise non hanno un accesso proprio, quindi i report non possono più essere letti. Seleziona una casella normale nelle impostazioni.",
   "d_ok_acked": "OK (gestito)"
 }

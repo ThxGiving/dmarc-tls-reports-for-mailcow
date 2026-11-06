@@ -245,5 +245,6 @@
   "setup_bookmark": "La página solo es accesible para administradores de mailcow. Guárdela en marcadores o use la entrada del menú Apps (opción de abajo):",
   "not_protected_t": "Configuración sin terminar: nginx todavía sirve la carpeta de datos",
   "not_protected_d": "El contenedor aún no ha podido confirmar que nginx bloquea la carpeta de datos. Hasta entonces la configuración está bloqueada; el contenedor lo comprueba cada minuto. Si el aviso no desaparece, reinicie nginx una vez en la carpeta de mailcow:",
+  "report_mailbox_shared": "El buzón de informes es un buzón compartido. Los buzones compartidos no tienen inicio de sesión propio, por lo que ya no se pueden leer los informes. Selecciona un buzón normal en los ajustes.",
   "d_ok_acked": "OK (resuelto)"
 }

@@ -236,6 +236,7 @@
   "app_name": "DMARC/TLS-Berichte",
   "not_protected_t": "Einrichtung nicht abgeschlossen: nginx liefert den Datenordner noch aus",
   "not_protected_d": "Der Container konnte noch nicht bestätigen, dass nginx den Datenordner sperrt. Bis dahin ist die Einrichtung gesperrt; der Container prüft jede Minute erneut. Verschwindet der Hinweis nicht, starten Sie nginx einmal im mailcow-Ordner neu:",
+  "report_mailbox_shared": "Das Berichtspostfach ist ein gemeinsam genutztes Postfach. Solche Postfächer haben keine eigene Anmeldung, daher können keine Berichte mehr gelesen werden. Wähle in den Einstellungen ein normales Postfach aus.",
   "setup_t": "DMARC/TLS-Berichte einrichten",
   "setup_intro": "Wählen Sie das Postfach, das die Berichte empfängt, und wer Warnungen bekommt. Die Seite legt für dieses Postfach ein App-Passwort an (nur IMAP und SMTP), das der Container verwendet.",
   "setup_new_mb": "Neues Postfach anlegen",

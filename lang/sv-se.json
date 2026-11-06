@@ -245,5 +245,6 @@
   "setup_bookmark": "Sidan är bara tillgänglig för mailcow-administratörer. Spara den som bokmärke eller använd posten i Apps-menyn (alternativet nedan):",
   "not_protected_t": "Konfigurationen är inte klar: nginx levererar fortfarande datamappen",
   "not_protected_d": "Containern har ännu inte kunnat bekräfta att nginx vägrar leverera datamappen. Tills dess är konfigurationen låst; containern kontrollerar igen varje minut. Om meddelandet inte försvinner, starta om nginx en gång i mailcow-mappen:",
+  "report_mailbox_shared": "Rapportbrevlådan är en delad brevlåda. Delade brevlådor har ingen egen inloggning, så rapporter kan inte längre läsas. Välj en vanlig brevlåda i inställningarna.",
   "d_ok_acked": "OK (hanterat)"
 }

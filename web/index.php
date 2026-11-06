@@ -91,6 +91,15 @@ foreach ((array) mailbox('get', 'domains') as $dom) {
 $all_domains = array_values(array_unique($all_domains));
 $main_domains = array_values(array_filter((array) mailbox('get', 'domains')));
 sort($all_mailboxes);
+// shared mailboxes (mailcow 2026-11+) refuse app passwords, so they cannot be the report mailbox; older
+// versions don't have the attribute and nothing is filtered. The configured one stays selectable with a warning.
+try {
+  $shared_mailboxes = $pdo->query("SELECT `username` FROM `mailbox` WHERE JSON_VALUE(`attributes`, '$.shared') = '1'")->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+  $shared_mailboxes = [];
+}
+$report_is_shared = in_array($settings['mailbox'] ?? '', $shared_mailboxes, true);
+$report_mailboxes = array_values(array_diff($all_mailboxes, array_diff($shared_mailboxes, [$settings['mailbox'] ?? ''])));
 
 $flash = function ($type, $msg) { $_SESSION['return'][] = ['type' => $type, 'msg' => $msg]; };
 
@@ -164,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
     $lang = isset($lang_files[$_POST['language'] ?? '']) ? $_POST['language'] : 'en-gb';
     $run_time = preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $_POST['run_time'] ?? '') ? $_POST['run_time'] : '07:30';
     $errors = [];
-    if (!in_array($mb, $all_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
+    if (!in_array($mb, $report_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
     $errors = array_merge($errors, $check_alert($alert, $mb));
     foreach ($ips as $ip) { if (!filter_var($ip, FILTER_VALIDATE_IP)) { $errors[] = 'IP: ' . htmlspecialchars($ip); } }
     if ($ips_mode === 'manual' && !$ips) { $errors[] = 'IP'; }
@@ -194,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
       elseif (in_array($mb, $all_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
     } else {
       $mb = strtolower(trim($_POST['mailbox'] ?? ''));
-      if (!in_array($mb, $all_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
+      if (!in_array($mb, $report_mailboxes, true)) { $errors[] = 'mailbox: ' . htmlspecialchars($mb); }
     }
     $alert = array_values(array_unique(array_filter(array_map('trim', preg_split('/[\s,;]+/', strtolower($_POST['alert_to'] ?? ''))))));
     $errors = array_merge($errors, $check_alert($alert, $mb));
@@ -448,6 +457,9 @@ $tpl = <<<'TWIG'
 
 {% if not protected %}
 <div class="alert alert-warning"><b>{{ L.not_protected_t }}</b><br>{{ L.not_protected_d }}<br><code>docker compose restart nginx-mailcow</code></div>
+{% endif %}
+{% if report_is_shared %}
+<div class="alert alert-warning">{{ L.report_mailbox_shared }}</div>
 {% endif %}
 {% if not configured %}
 <div class="card mb-4 border-primary"><div class="card-header fs-5"><i class="bi bi-magic me-2"></i>{{ L.setup_t }}</div><div class="card-body">
@@ -761,7 +773,7 @@ $template_data = [
   'issues' => $issues, 'open_n' => $open_n, 'worst' => $worst, 'kpi' => $kpi, 'acked' => $acked_list,
   'own_badge' => $pct_badge($kpi['own_pct'] ?? null, $has_open('own:')), 'tls_badge' => $pct_badge($kpi['tls_pct'] ?? null, $has_open('tls:')),
   'chart' => $chart, 'colors' => $series_keys,
-  'mailboxes' => $all_mailboxes, 'main_domains' => $main_domains, 'detected_ips' => $detected_ips, 'run_time' => $run_time,
+  'mailboxes' => $report_mailboxes, 'report_is_shared' => $report_is_shared, 'main_domains' => $main_domains, 'detected_ips' => $detected_ips, 'run_time' => $run_time,
   'next_run' => $next_run, 'run_pending' => $run_pending, 'protected' => $protected, 'configured' => $configured, 'host' => $_SERVER['HTTP_HOST'] ?? '', 'base_url' => $base_url,
   'dns' => $dns, 'dns_todo' => $dns_todo, 'dns_by_domain' => $dns_by_domain, 'dns_ok_n' => $dns_ok_n, 'dns_bad' => $dns_bad, 'fresh' => $fresh,
 ];

@@ -245,5 +245,6 @@
   "setup_bookmark": "Lapa ir pieejama tikai mailcow administratoriem. Saglabājiet to grāmatzīmēs vai izmantojiet ierakstu Apps izvēlnē (opcija zemāk):",
   "not_protected_t": "Iestatīšana nav pabeigta: nginx joprojām pasniedz datu mapi",
   "not_protected_d": "Konteiners vēl nav varējis apstiprināt, ka nginx atsakās pasniegt datu mapi. Līdz tam iestatīšana ir bloķēta; konteiners pārbauda katru minūti. Ja paziņojums nepazūd, vienreiz restartējiet nginx mailcow mapē:",
+  "report_mailbox_shared": "Atskaišu pastkaste ir koplietota. Koplietotām pastkastēm nav savas pieteikšanās, tāpēc atskaites vairs nevar nolasīt. Iestatījumos izvēlieties parastu pastkasti.",
   "d_ok_acked": "OK (izdarīts)"
 }

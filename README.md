@@ -24,7 +24,7 @@ Features:
 
 ## Requirements
 
-- mailcow-dockerized with `docker compose` (tested with 2026-09)
+- mailcow-dockerized with `docker compose` (tested with 2026-10 and 2026-11)
 - Nothing else on the host: no scripts, packages or system services, and no nginx restart is needed.
 
 ## Install
