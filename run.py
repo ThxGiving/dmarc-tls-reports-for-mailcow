@@ -206,6 +206,7 @@ class Poller:
                     ctx.check_hostname, ctx.verify_mode = False, ssl.CERT_NONE
                 self.conn = _IMAP(ENV.get("IMAP_HOST", "dovecot"), int(ENV.get("IMAP_PORT", "993")), ssl_context=ctx, timeout=60)
                 self.conn.login(*key)
+            self.conn.noop()                       # STATUS on the selected INBOX is stale until the next sync
             for folder in ("INBOX", "Junk"):
                 typ, data = self.conn.status(f'"{folder}"', "(MESSAGES)")
                 m = re.search(rb"MESSAGES (\d+)", data[0] or b"") if typ == "OK" else None
