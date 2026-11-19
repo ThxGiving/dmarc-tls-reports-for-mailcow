@@ -119,18 +119,40 @@ $check_alert = function (array $alert, $mb) {
 
 // password that passes any mailcow password policy (upper/lower case, digit, special char)
 $strong_pw = function () { return bin2hex(random_bytes(16)) . 'Aa1-' . bin2hex(random_bytes(8)); };
-// app password for the report mailbox, IMAP + SMTP only; replaces the one this page created before
-$setup_access = function ($mb) use (&$settings, $protected, $app_name, $strong_pw, $write_json, $cred_file) {
+// Install the replacement before deleting the working app password. Settings are committed in the
+// same operation so a failed file write can roll back while the old password still works.
+$setup_access = function ($mb, array $new_settings) use (&$settings, $protected, $app_name, $strong_pw, $write_json, $cred_file, $settings_file) {
   if (!$protected) { return false; }
+  $old = [];
   foreach (array_unique(array_filter([$settings['mailbox'] ?? '', $mb])) as $box) {
     foreach ((array) app_passwd('get', ['username' => $box]) as $ap) {
-      if (($ap['name'] ?? '') === $app_name) { app_passwd('delete', ['id' => [$ap['id']]]); }
+      $name = (string) ($ap['name'] ?? '');
+      if (($name === $app_name || str_starts_with($name, $app_name . '-')) && isset($ap['id'])) {
+        $old[] = $ap['id'];
+      }
     }
   }
+  $new_name = $app_name . '-' . bin2hex(random_bytes(4));
   $pw = $strong_pw();
-  $ok = app_passwd('add', ['username' => $mb, 'app_name' => $app_name, 'app_passwd' => $pw, 'app_passwd2' => $pw,
+  $ok = app_passwd('add', ['username' => $mb, 'app_name' => $new_name, 'app_passwd' => $pw, 'app_passwd2' => $pw,
                            'active' => '1', 'protocols' => ['imap_access', 'smtp_access']]);
-  return $ok !== false && $write_json($cred_file, ['user' => $mb, 'password' => $pw]);
+  if ($ok === false) { return false; }
+  $remove_new = function () use ($mb, $new_name) {
+    foreach ((array) app_passwd('get', ['username' => $mb]) as $ap) {
+      if (($ap['name'] ?? '') === $new_name && isset($ap['id'])) { app_passwd('delete', ['id' => [$ap['id']]]); }
+    }
+  };
+  if (!$write_json($settings_file, $new_settings)) {
+    $remove_new();
+    return false;
+  }
+  if (!$write_json($cred_file, ['user' => $mb, 'password' => $pw])) {
+    $write_json($settings_file, $settings);
+    $remove_new();
+    return false;
+  }
+  foreach ($old as $id) { app_passwd('delete', ['id' => [$id]]); }
+  return true;
 };
 // Apps menu entry via mailcow's own customize(); existing entries are kept
 $add_app_link = function () use (&$L) {
@@ -178,17 +200,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
     foreach ($ips as $ip) { if (!filter_var($ip, FILTER_VALIDATE_IP)) { $errors[] = 'IP: ' . htmlspecialchars($ip); } }
     if ($ips_mode === 'manual' && !$ips) { $errors[] = 'IP'; }
     if (!$protected) { $errors[] = $L['not_protected_t'] ?? 'nginx'; }
-    elseif (!$errors && ($mb !== ($settings['mailbox'] ?? '') || !is_readable($cred_file)) && !$setup_access($mb)) {
-      $errors[] = 'app password';
-    }
+    $new_settings = ['mailbox' => $mb, 'alert_to' => implode(',', $alert), 'own_ips' => $ips,
+                     'own_ips_mode' => $ips_mode, 'language' => $lang, 'run_time' => $run_time];
+    $needs_access = $mb !== ($settings['mailbox'] ?? '') || !is_readable($cred_file);
     if ($errors) {
       $flash('danger', $L['invalid'] . ': ' . implode(', ', $errors));
-    } elseif ($write_json($settings_file, ['mailbox' => $mb, 'alert_to' => implode(',', $alert), 'own_ips' => $ips,
-                                          'own_ips_mode' => $ips_mode, 'language' => $lang, 'run_time' => $run_time])) {
+    } elseif (($needs_access && $setup_access($mb, $new_settings)) || (!$needs_access && $write_json($settings_file, $new_settings))) {
       @touch($data_dir . '/run-now');   // apply right away (e.g. watch a newly selected mailbox)
       $flash('success', $L['saved']);
     } else {
-      $flash('danger', 'Cannot write ' . basename($settings_file));
+      $flash('danger', $needs_access ? 'app password' : 'Cannot write ' . basename($settings_file));
     }
   }
   elseif ($action === 'setup') {
@@ -213,9 +234,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
             'quota' => 200, 'password' => $pw, 'password2' => $pw, 'active' => '1', 'force_pw_update' => '0',
             'tls_enforce_in' => '0', 'tls_enforce_out' => '0']) === false) { $errors[] = 'mailbox'; }
     }
-    if (!$errors && !$setup_access($mb)) { $errors[] = 'app password'; }
-    if (!$errors && !$write_json($settings_file, ['mailbox' => $mb, 'alert_to' => implode(',', $alert), 'own_ips' => [],
-          'own_ips_mode' => 'auto', 'language' => $lang_code, 'run_time' => '07:30'])) { $errors[] = basename($settings_file); }
+    $new_settings = ['mailbox' => $mb, 'alert_to' => implode(',', $alert), 'own_ips' => [],
+                     'own_ips_mode' => 'auto', 'language' => $lang_code, 'run_time' => '07:30'];
+    if (!$errors && !$setup_access($mb, $new_settings)) { $errors[] = 'app password'; }
     if ($errors) {
       $flash('danger', $L['invalid'] . ': ' . implode(', ', $errors));
       $go_tab = 'overview';
@@ -240,10 +261,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mr_action'])) {
         'quota' => 200, 'password' => $pw, 'password2' => $pw, 'active' => '1',
         'force_pw_update' => '0', 'tls_enforce_in' => '0', 'tls_enforce_out' => '0',
       ]);
-      if ($ok !== false && $setup_access($local . '@' . $dom)) {
+      if ($ok !== false) {
         $new = $settings; $new['mailbox'] = $local . '@' . $dom;
-        $write_json($settings_file, array_intersect_key($new, array_flip(['mailbox', 'alert_to', 'own_ips', 'own_ips_mode', 'language', 'run_time'])));
-        @touch($data_dir . '/run-now');
+        $new = array_intersect_key($new, array_flip(['mailbox', 'alert_to', 'own_ips', 'own_ips_mode', 'language', 'run_time']));
+        if ($setup_access($local . '@' . $dom, $new)) { @touch($data_dir . '/run-now'); }
       }
     }
   }
@@ -320,19 +341,39 @@ if ($report_mb) {
     return $out;
   };
   $want = 'mailto:' . $report_mb;
+  $tag_value = function ($record, $tag) {
+    foreach (explode(';', (string) $record) as $part) {
+      $pair = explode('=', $part, 2);
+      if (count($pair) === 2 && strcasecmp(trim($pair[0]), $tag) === 0) { return trim($pair[1]); }
+    }
+    return null;
+  };
+  $has_report_uri = function ($record, $tag, $uri) use ($tag_value) {
+    $value = $tag_value($record, $tag);
+    if ($value === null) { return false; }
+    foreach (explode(',', $value) as $candidate) {
+      // DMARC permits an optional !size suffix on reporting URIs.
+      $candidate = preg_replace('/![0-9]+[kmgt]?$/i', '', trim($candidate));
+      if (strcasecmp($candidate, $uri) === 0) { return true; }
+    }
+    return false;
+  };
   foreach ($all_domains as $d) {
     $tls = $txt('_smtp._tls.' . $d);
     $dmarc_all = $txt('_dmarc.' . $d);
     $dmarc = array_values(array_filter($dmarc_all, function ($v) { return stripos(ltrim($v), 'v=DMARC1') === 0; }));
     $dmarc_invalid = array_values(array_diff($dmarc_all, $dmarc));   // e.g. the name pasted into the value
-    $tls_ok = (bool) array_filter($tls, function ($v) use ($want) { return stripos($v, 'v=TLSRPTv1') !== false && stripos($v, $want) !== false; });
+    $tls_ok = (bool) array_filter($tls, function ($v) use ($want, $tag_value, $has_report_uri) {
+      return strcasecmp((string) $tag_value($v, 'v'), 'TLSRPTv1') === 0 && $has_report_uri($v, 'rua', $want);
+    });
     $dmarc_cur = $dmarc[0] ?? '';
     if (!$dmarc_cur && $dmarc_invalid) {           // repair the broken value instead of proposing p=none
       $fixed = preg_replace('/^.*?(v=DMARC1)/is', '$1', $dmarc_invalid[0]);
       $dmarc_cur = stripos($fixed, 'v=DMARC1') === 0 ? $fixed : '';
     }
-    $dmarc_ok = $dmarc_cur && stripos($dmarc_cur, $want) !== false && count($dmarc) === 1 && !$dmarc_invalid;
-    if ($dmarc_cur && stripos($dmarc_cur, $want) !== false) {
+    $dmarc_has_rua = $dmarc_cur && $has_report_uri($dmarc_cur, 'rua', $want);
+    $dmarc_ok = $dmarc_has_rua && count($dmarc) === 1 && !$dmarc_invalid;
+    if ($dmarc_has_rua) {
       $dmarc_suggest = $dmarc_cur;
     } elseif ($dmarc_cur) {
       $dmarc_suggest = preg_match('/rua=([^;]*)/i', $dmarc_cur)

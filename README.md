@@ -110,7 +110,7 @@ docker volume rm mailcowdockerized_reports-vol-1      # collected data
 
 Remove the block between `/* mailcow-report-dashboard: begin */` and `... end */` from
 `data/web/css/build/0081-custom-mailcow.css`, the "DMARC/TLS reports" entry under System → Customize → App links,
-and the app password "mailcow-report-dashboard" in the report mailbox's settings.
+and the app password starting with "mailcow-report-dashboard" in the report mailbox's settings.
 
 ## Security notes
 

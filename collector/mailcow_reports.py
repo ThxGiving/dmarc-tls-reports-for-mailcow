@@ -93,6 +93,7 @@ MAX_PTR_LOOKUPS = 40                                         # new reverse-DNS l
 UNPROCESSED_KEEP_DAYS = 30                                   # parked mail older than this is deleted
 DRY_RUN = "--dry-run" in sys.argv
 DAY = 86400
+DAILY_RETRY = 1800                                           # failed daily run: retry after 30 min, not on every check
 
 LANG_DIRS = [os.path.join(PAGE_DIR, "lang"),                             # deployed next to the web page
              os.path.join(BASE, "..", "lang")]                            # source checkout (tests)
@@ -427,8 +428,22 @@ def _ts(value):
         return None
 
 
+def _nonnegative_int(value, field):
+    if isinstance(value, bool):
+        raise ValueError(f"invalid {field}")
+    try:
+        value = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"invalid {field}") from None
+    if value < 0:
+        raise ValueError(f"negative {field}")
+    return value
+
+
 def parse_tlsrpt(data, findings, con, received):
     rep = json.loads(data)
+    if not isinstance(rep, dict):
+        raise ValueError("not a TLS-RPT report (object expected)")
     org = rep.get("organization-name", "?")
     rng = rep.get("date-range", {})
     begin, end = _ts(rng.get("start-datetime")), _ts(rng.get("end-datetime"))
@@ -437,27 +452,38 @@ def parse_tlsrpt(data, findings, con, received):
         raise ValueError("not a TLS-RPT report (report-id/policies missing)")
     if len(rep["policies"]) > MAX_RECORDS:
         raise TooLarge(f"more than {MAX_RECORDS} policies")
+    failure_details = 0
     for n, pol in enumerate(rep["policies"]):
         if not isinstance(pol, dict):
             raise ValueError("invalid policy entry")
         details = pol.get("failure-details") or []
         if not isinstance(details, list) or len(details) > MAX_RECORDS:
             raise ValueError("invalid failure-details")
+        failure_details += len(details)
+        if failure_details > MAX_RECORDS:
+            raise TooLarge(f"more than {MAX_RECORDS} failure details")
         details = [d for d in details if isinstance(d, dict)]
         p = pol.get("policy", {})
-        dom = str(p.get("policy-domain") or "?").lower().rstrip(".")
         s = pol.get("summary", {})
-        ok, fail = int(s.get("total-successful-session-count", 0)), int(s.get("total-failure-session-count", 0))
-        findings["tls_ok"] += ok
+        if not isinstance(p, dict) or not isinstance(s, dict):
+            raise ValueError("invalid policy/summary")
+        dom = str(p.get("policy-domain") or "?").lower().rstrip(".")
+        ok = _nonnegative_int(s.get("total-successful-session-count", 0), "successful session count")
+        fail = _nonnegative_int(s.get("total-failure-session-count", 0), "failure session count")
+        for d in details:
+            _nonnegative_int(d.get("failed-session-count", 0), "failed session count")
         # one row per policy: a report may contain several policies (sts, tlsa, ...) for one domain
         rid = insert_report(con, "tls", org, f"{report_id}#{n}", dom, p.get("policy-type"), begin, end, received)
+        fresh = con is None or rid is not None
+        if fresh:
+            findings["tls_ok"] += ok
         if rid:
             con.execute("INSERT INTO tls_rows VALUES (?,?,?,?,?)", (rid, dom, p.get("policy-type"), ok, fail))
             for d in details:
                 con.execute("INSERT INTO tls_fail VALUES (?,?,?,?,?,?,?)", (
-                    rid, _s(d.get("result-type"), 60), int(d.get("failed-session-count", 0)), _s(d.get("receiving-mx-hostname")),
+                    rid, _s(d.get("result-type"), 60), _nonnegative_int(d.get("failed-session-count", 0), "failed session count"), _s(d.get("receiving-mx-hostname")),
                     _s(d.get("sending-mta-ip"), 45), _s(d.get("receiving-ip"), 45), _s(d.get("failure-reason-code"), 300)))
-        if fail:
+        if fresh and fail:
             details = "; ".join(
                 f"{d.get('result-type')} ({d.get('failed-session-count')}x, MX {d.get('receiving-mx-hostname', '?')})"
                 for d in details[:20]) or T["mail_no_details"]
@@ -549,12 +575,13 @@ def parse_dmarc(data, findings, con, received):
     dom = (root.findtext("policy_published/domain") or "?").strip().lower().rstrip(".")
     policy = root.findtext("policy_published/p", "")
     rid = insert_report(con, "dmarc", org, report_id, dom, policy, begin, end, received)
+    fresh = con is None or rid is not None
     records = root.findall("record")
     if len(records) > MAX_RECORDS:
         raise TooLarge(f"more than {MAX_RECORDS} records")
     for rec in records:
         ip = rec.findtext("row/source_ip", "").strip()
-        cnt = int((rec.findtext("row/count") or "0").strip())
+        cnt = _nonnegative_int((rec.findtext("row/count") or "0").strip(), "DMARC row count")
         dkim = rec.findtext("row/policy_evaluated/dkim", "")
         spf = rec.findtext("row/policy_evaluated/spf", "")
         disp = rec.findtext("row/policy_evaluated/disposition", "")
@@ -576,13 +603,13 @@ def parse_dmarc(data, findings, con, received):
                         " envelope_from, dkim_auth, spf_auth, reasons) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                         (rid, ip, cnt, disp, dkim, spf, hfrom, int(own), env_from,
                          json.dumps(dkim_auth), json.dumps(spf_auth), json.dumps(reasons)))
-        if own:
+        if fresh and own:
             findings["dmarc_own_ok" if passed else "dmarc_own_fail"] += cnt
             if not passed:
                 why = explain(ip, dkim, spf, hfrom, dkim_auth, spf_auth, reasons)
                 findings["alerts"].append(fmt("mail_dmarc", org=org, cnt=cnt, ip=ip, dom=dom, dkim=dkim, spf=spf)
                                           + ("".join(f"\n    {T['mail_why']}: {tr(w)}" for w in why) if why else ""))
-        elif not passed and not any(r["type"] in FORWARD_REASONS for r in reasons):
+        elif fresh and not passed and not any(r["type"] in FORWARD_REASONS for r in reasons):
             findings["spoof"][dom] = findings["spoof"].get(dom, 0) + cnt
 
 
@@ -906,23 +933,26 @@ def write_atomic(path, text, mode=0o644):
 # --- main
 
 def due(con):
-    """--scheduled: run when "run now" was requested, or once a day after RUN_TIME."""
+    """Return the pending scheduled trigger, without completing a daily run prematurely."""
     if os.path.lexists(RUN_NOW_FLAG):
         os.remove(RUN_NOW_FLAG)
-        return True
+        return "manual"
     try:
         hh, mm = (int(x) for x in RUN_TIME.split(":"))
     except ValueError:
         hh, mm = 7, 30
     now = datetime.now()
     if (now.hour, now.minute) < (hh, mm):
-        return False
+        return None
     # instant runs (new mail) don't count - the safety net must run once every day
     last = int(state_get(con, "last_daily", "0") or 0)
     if last and datetime.fromtimestamp(last).date() >= now.date():
-        return False
-    state_set(con, "last_daily", str(int(time.time())))
-    return True
+        return None
+    # completed only after a successful run (last_daily); a failed attempt waits DAILY_RETRY
+    if int(state_get(con, "daily_retry_after", "0") or 0) > time.time():
+        return None
+    state_set(con, "daily_retry_after", str(int(time.time()) + DAILY_RETRY))
+    return "daily"
 
 
 def process_message(con, guid, uid):
@@ -1004,13 +1034,23 @@ def _expunge_older(folder, days):
 
 
 def main():
-    global OWN_IPS
     # one run at a time (daily timer, "run now" and new-mail trigger may coincide)
     lock = open(DB_PATH + ".lock", "w")
     fcntl.flock(lock, fcntl.LOCK_EX)
     con = db_open()
+    try:
+        run(con)
+    finally:
+        con.close()
+        lock.close()
+
+
+def run(con):
+    global OWN_IPS
     con.execute("BEGIN")
-    go = "--scheduled" not in sys.argv or due(con)
+    scheduled = "--scheduled" in sys.argv
+    scheduled_trigger = due(con) if scheduled else None
+    go = not scheduled or scheduled_trigger is not None
     con.execute("COMMIT")
     if not go:
         return                                     # hourly check, nothing due: no network, no work
@@ -1029,6 +1069,8 @@ def main():
         con.execute("BEGIN")
         if not ready and "--export-only" not in sys.argv:
             con.execute("INSERT INTO runs VALUES (?,?,?,?)", (int(time.time()), 0, 0, json.dumps({"no_mailbox": True})))
+            if scheduled_trigger == "daily" and not MAILBOX:   # not set up yet: nothing to catch up on
+                state_set(con, "last_daily", str(int(time.time())))
         export(con)
         con.execute("COMMIT")
         return
@@ -1089,6 +1131,8 @@ def main():
         _expunge_older(UNPROCESSED, UNPROCESSED_KEEP_DAYS)
     state_set(con, "unprocessed", str(_count(UNPROCESSED)))
     state_set(con, "alert_error", ", ".join(alert_failed))
+    if scheduled_trigger == "daily":
+        state_set(con, "last_daily", str(int(time.time())))
     con.execute("DELETE FROM reports WHERE COALESCE(date_end, received) < ?", (int(time.time()) - RETENTION_DAYS * DAY,))
     con.execute("DELETE FROM runs WHERE ts < ?", (int(time.time()) - RETENTION_DAYS * DAY,))
     con.execute("INSERT INTO runs VALUES (?,?,?,?)", (int(time.time()), findings["reports"], len(findings["alerts"]), summary))

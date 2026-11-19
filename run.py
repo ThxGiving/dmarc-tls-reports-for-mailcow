@@ -8,7 +8,7 @@ volumes), then loops:
 The page is usable only after nginx has loaded the snippet that blocks _data/; until then
 the settings page refuses to store the app password (see _data/container.json).
 """
-import filecmp, glob, hashlib, imaplib, json, os, re, shutil, socket, ssl, subprocess, sys, time
+import filecmp, glob, hashlib, imaplib, json, os, re, socket, ssl, stat, subprocess, sys, tempfile, time
 
 APP = os.path.dirname(os.path.abspath(__file__))
 ENV = os.environ
@@ -35,13 +35,44 @@ def log(msg):
     print(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}", flush=True)
 
 
+def atomic_write(path, data, mode=0o644, owner=None):
+    """Replace path through an unpredictable same-directory file without following symlinks."""
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".tmp-")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(data if isinstance(data, bytes) else data.encode())
+            os.fchmod(f.fileno(), mode)
+            if owner is not None:
+                os.fchown(f.fileno(), *owner)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def read_untrusted_json(path, limit=4096):
+    """Read a bounded regular JSON file from the web-writable data directory."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
+            raise ValueError("not a regular JSON file or too large")
+        with os.fdopen(fd, "rb") as f:
+            fd = None
+            return json.loads(f.read(limit + 1))
+    finally:
+        if fd is not None:
+            os.close(fd)
+
+
 def copy_if_changed(src, dst, mode=0o644):
     if os.path.exists(dst) and filecmp.cmp(src, dst, shallow=False):
         return False
-    tmp = dst + ".tmp"
-    shutil.copyfile(src, tmp)
-    os.chmod(tmp, mode)
-    os.replace(tmp, dst)
+    with open(src, "rb") as f:
+        atomic_write(dst, f.read(), mode)
     return True
 
 
@@ -62,10 +93,7 @@ def deploy():
     changed = copy_if_changed(src, os.path.join(WEB_DIR, page))
     changed |= copy_if_changed(os.path.join(APP, "web", "loader.php"), os.path.join(WEB_DIR, "index.php"))
     os.makedirs(DATA_DIR, mode=0o750, exist_ok=True)
-    with open(os.path.join(DATA_DIR, "version.tmp"), "w") as f:     # _data: not readable for nginx
-        f.write(ver)
-    os.chmod(os.path.join(DATA_DIR, "version.tmp"), 0o644)
-    os.replace(os.path.join(DATA_DIR, "version.tmp"), os.path.join(DATA_DIR, "version"))
+    atomic_write(os.path.join(DATA_DIR, "version"), ver, 0o644)     # _data: not readable for nginx
     if os.path.exists(os.path.join(WEB_DIR, ".version")):
         os.remove(os.path.join(WEB_DIR, ".version"))
     for old in glob.glob(os.path.join(WEB_DIR, "page-*.php")):
@@ -81,9 +109,7 @@ def deploy():
         snippet = f.read().replace("__SLUG__", SLUG)
     current = open(SNIPPET).read() if os.path.exists(SNIPPET) else None
     if current != snippet:
-        with open(SNIPPET + ".tmp", "w") as f:
-            f.write(snippet)
-        os.replace(SNIPPET + ".tmp", SNIPPET)
+        atomic_write(SNIPPET, snippet)
         log("nginx snippet written (active after the next nginx restart; _data is already blocked by file permissions)")
     if changed:
         log(f"web page deployed to data/web/{SLUG}")
@@ -123,21 +149,19 @@ def ensure_menu_css():
     else:
         new = css + ("\n" if css and not css.endswith("\n") else "") + block
     if new != css:
-        with open(CSS_FILE + ".tmp", "w") as f:
-            f.write(new)
-        os.chmod(CSS_FILE + ".tmp", 0o644)
-        os.replace(CSS_FILE + ".tmp", CSS_FILE)
+        atomic_write(CSS_FILE, new)
         log("Apps menu entry limited to admins (data/web/css/build/0081-custom-mailcow.css)")
 
 
 def protected(quiet=False):
     """True only if nginx answers 403/404 for a file in _data/ while the page itself answers,
     i.e. we really talked to mailcow's vhost and it refuses to serve the data folder."""
-    probe = os.path.join(DATA_DIR, "probe.txt")
-    with open(probe, "w") as f:
+    fd, probe = tempfile.mkstemp(dir=DATA_DIR, prefix=".probe-", suffix=".txt")
+    with os.fdopen(fd, "w") as f:
         f.write("probe")
     try:
-        data_code, page_code = _get(f"/{SLUG}/_data/probe.txt"), _get(f"/{SLUG}/")
+        data_code = _get(f"/{SLUG}/_data/{os.path.basename(probe)}")
+        page_code = _get(f"/{SLUG}/")
     except OSError as e:
         if not quiet:
             log(f"protection check failed: {e}")
@@ -151,19 +175,22 @@ def protected(quiet=False):
 
 
 def write_status(prot):
-    tmp = STATUS + ".tmp"
-    with open(tmp, "w") as f:
-        json.dump({"version": VERSION, "protected": prot, "checked": int(time.time()), "slug": SLUG}, f)
-    os.chown(tmp, WWW, WWW)
-    os.chmod(tmp, 0o640)
-    os.replace(tmp, STATUS)
+    data = json.dumps({"version": VERSION, "protected": prot, "checked": int(time.time()), "slug": SLUG})
+    atomic_write(STATUS, data, 0o640, (WWW, WWW))
 
 
 def run_collector(*args):
-    r = subprocess.run([sys.executable, os.path.join(APP, "collector", "mailcow_reports.py"), *args],
-                       capture_output=True, text=True, timeout=1800)
+    try:
+        r = subprocess.run([sys.executable, os.path.join(APP, "collector", "mailcow_reports.py"), *args],
+                           capture_output=True, text=True, timeout=1800)
+    except subprocess.TimeoutExpired:
+        log("collector timed out after 1800 seconds")
+        return False
     for line in (r.stdout + r.stderr).strip().splitlines():
         log(line)
+    if r.returncode:
+        log(f"collector exited with status {r.returncode}")
+    return r.returncode == 0
 
 
 class _IMAP(imaplib.IMAP4_SSL):
@@ -189,8 +216,7 @@ class Poller:
         """True as soon as the report mailbox has mail: checks INBOX/Junk, then waits up to
         `seconds` with IMAP IDLE on INBOX, so dovecot pushes new reports within a second."""
         try:
-            with open(CRED) as f:
-                cred = json.load(f)
+            cred = read_untrusted_json(CRED)
             key = (cred.get("user"), cred.get("password"))
         except (OSError, ValueError, AttributeError):
             self.close()
